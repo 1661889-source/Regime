@@ -188,6 +188,7 @@ label + .exp, .flab + .exp{margin:-3px 0 4px}
 .qbtn{width:22px; height:22px; border-radius:50%; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:700; font-size:12px; line-height:1; cursor:pointer; padding:0}
 .qbtn[aria-expanded="true"]{background:var(--accent); color:var(--accent-fg)}
 .tip{margin-top:8px; padding:10px 12px; background:var(--bg); color:var(--fg); border-left:3px solid var(--accent); border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.45}
+.resbar{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px}
 .saveBox{display:flex; flex-direction:column; gap:8px; margin-top:12px; align-items:flex-start}
 .sv-form{display:flex; flex-direction:column; gap:8px; width:100%}
 .lifein input{min-width:90px}
@@ -2138,6 +2139,73 @@ $('hsmQ').addEventListener('click',()=>{ const t=$('hsmTip'), open=t.hidden; t.h
   document.addEventListener('input',e=>{ if(/SMan$|^sMan$/.test(e.target.id)) setTimeout(upd,0); });
   upd();
 })();
+</script>
+<script>
+// ===== Все основные значения правятся прямо в результате + «Вернуть рекомендуемые» =====
+(function(){
+  function clickSeg(segId, v){ const b=document.querySelector('#'+segId+' button[data-v="'+v+'"]'); if(b && b.getAttribute('aria-pressed')!=='true') b.click(); }
+  function fire(el){ el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
+  const setVal=(id,v)=>{ const el=$(id); el.value=v; fire(el); };
+  // виды правки: per — подача на зуб/оборот в ручное поле; vc — скорость → обороты; inp — прямо в поле ввода
+  const MORE = {
+    mill:   [['oVc','vc','sMan','dia'], ['oFz','per','fzMan'], ['oAp','inp','ap'], ['oAe','inp','ae']],
+    drill:  [['dVc','vc','dSMan','dD'], ['dFr','per','dFMan']],
+    tap:    [['kVc','vc','kSMan','kD']],
+    thread: [['tVc','vc','tSMan','td'], ['tFz','per','tFzMan'], ['tPass','inp','tPassMan']],
+    ream:   [['qVc','vc','qSMan','qD'], ['qFr','per','qFMan']],
+    chamfer:[['cFz','per','cFMan']],
+  };
+  function commitOne(kind, target, extra, x){
+    if(kind==='per'){ clickSeg(target+'U','per'); setVal(target, x); }
+    else if(kind==='vc'){ const D=num(extra); if(D>0) setVal(target, Math.round(x*1000/(Math.PI*D))); }
+    else setVal(target, x);
+  }
+  Object.values(MORE).forEach(list=>list.forEach(([vId,kind,target,extra])=>{
+    const v=$(vId), tile=v && v.closest('.tile'); if(!tile || tile.classList.contains('edit')) return;
+    tile.classList.add('edit'); tile.title='Нажмите, чтобы изменить';
+    tile.addEventListener('click',()=>{
+      if(tile.querySelector('.tin')) return;
+      const inp=document.createElement('input'); inp.type='number'; inp.inputMode='decimal'; inp.className='tin';
+      inp.step = kind==='per' ? '0.005' : kind==='vc' ? '5' : '0.1';
+      inp.value = pn(vId); v.hidden=true; v.after(inp); inp.focus(); inp.select();
+      let done=false, tmr=null;
+      const ok=x=>isFinite(x) && x>0 && !(kind==='vc' && x<5);
+      const commit=keep=>{ if(done) return; done=true; clearTimeout(tmr); const x=parseFloat(String(inp.value).replace(',','.')); inp.remove(); v.hidden=false; if(keep && ok(x)) commitOne(kind,target,extra,x); };
+      inp.addEventListener('input',()=>{ clearTimeout(tmr); tmr=setTimeout(()=>{ const x=parseFloat(String(inp.value).replace(',','.')); if(ok(x)) commitOne(kind,target,extra,x); },350); });
+      inp.addEventListener('keydown',ev=>{ if(ev.key==='Enter') commit(true); if(ev.key==='Escape') commit(false); });
+      inp.addEventListener('blur',()=>commit(true));
+    });
+  }));
+  // кнопка «Вернуть рекомендуемые» в каждом результате
+  const RESET = {
+    mill:   {res:'#mMill .res',   man:['sMan','fzMan'], seg:'fzManU', after:()=>{ recApAe(); calc(); }},
+    drill:  {res:'#mDrill .res',  man:['dSMan','dFMan'], seg:'dFManU', after:()=>dCalc()},
+    tap:    {res:'#mTap .res',    man:['kSMan'], after:()=>kCalc()},
+    thread: {res:'#mThread .res', man:['tSMan','tFzMan','tPassMan'], seg:'tFzManU', after:()=>tTool()},
+    ream:   {res:'#mReam .res',   man:['qSMan','qFMan'], seg:'qFManU', after:()=>qCalc()},
+    chamfer:{res:'#mChamfer .res',man:['cSMan','cFMan'], seg:'cFManU', after:()=>cCalc()},
+  };
+  Object.values(RESET).forEach(cfg=>{
+    const card=document.querySelector(cfg.res); if(!card) return;
+    const bar=document.createElement('div'); bar.className='resbar';
+    bar.innerHTML='<span class="hint" style="margin:0">Нажмите на значение ✎, чтобы изменить</span><button type="button" class="btn">Вернуть рекомендуемые</button>';
+    card.prepend(bar);
+    const btn=bar.querySelector('button');
+    const isMod=()=>cfg.man.some(id=>num(id)>0);
+    const sync=()=>{ btn.classList.toggle('btn-main', isMod()); };
+    btn.addEventListener('click',()=>{
+      cfg.man.forEach(id=>{ $(id).value=''; });
+      if(cfg.seg) clickSeg(cfg.seg,'per');
+      cfg.after(); sync();
+    });
+    cfg.man.forEach(id=>$(id).addEventListener('input',sync)); sync();
+    new MutationObserver(sync).observe(card,{childList:true,subtree:true,characterData:true});
+  });
+})();
+</script>
+<script>
+// блоки «Ручная настройка» скрыты: всё правится прямо в результате (поля остаются для расчёта)
+document.querySelectorAll('details.fold > summary, .card > h2').forEach(x=>{ if(x.textContent.trim()==='Ручная настройка'){ const c=x.closest('details, .card'); if(c) c.hidden=true; } });
 </script>
 
 </body></html>
