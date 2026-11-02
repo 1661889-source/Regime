@@ -93,7 +93,8 @@ select:focus,input:focus,button:focus-visible{outline:2px solid var(--accent); o
 .code-head{display:flex; justify-content:space-between; align-items:center; margin-top:14px; margin-bottom:6px}
 .code{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin:0; font-family:var(--mono); font-size:12.5px; line-height:1.55; overflow:auto; max-height:320px; white-space:pre; color:var(--fg)}
 .top{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-bottom:14px}
-.toprow{max-width:640px; grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.toprow{max-width:760px; grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:760px){ .toprow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .toprow > div:first-child{grid-column:1 / -1} }
 .row4{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
 .span2{grid-column:span 2}
 @media (max-width:760px){ .row4{grid-template-columns:repeat(2,minmax(0,1fr))} }
@@ -227,6 +228,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
     <div class="row toprow">
       <div><label class="label" for="mat">Материал</label><select id="mat"></select></div>
       <div><label class="label" for="nMax">Макс. S, об/мин</label><input id="nMax" type="number" value="12000" step="500" min="500"></div>
+      <div><label class="label" for="nWork">Рабочие S, об/мин</label><input id="nWork" type="number" value="10000" step="500" min="500"></div>
     </div>
     <details class="legend">
       <summary>Что значат обозначения</summary>
@@ -1066,6 +1068,17 @@ try{ const s=localStorage.getItem('last_mat'); if(s && M.find(m=>m.id===s)) sel.
 function mat(){ return M.find(m=>m.id===sel.value); }
 function tool(){ return TOOLS[$('toolType').value]; }
 function num(id){ const v=parseFloat($(id).value); return isFinite(v)?v:0; }
+// рекомендуемый предел оборотов: рабочий предел, ниже для китайского инструмента и длинного вылета
+let recWhy='';
+function nRec(cn, ld){
+  const nMax=num('nMax')||12000; let w=Math.min(num('nWork')||nMax, nMax); const why=[];
+  if(w<nMax) why.push('рабочий предел');
+  if(cn && w>0.75*nMax){ w=0.75*nMax; why.push('китайский инструмент — биение'); }
+  if(ld>6){ w*=0.65; why.push('вылет больше 6×D'); } else if(ld>4){ w*=0.8; why.push('вылет больше 4×D'); }
+  recWhy=why.join(', ');
+  return Math.round(w/100)*100;
+}
+function recNote(nLim){ const nMax=num('nMax')||12000; return nLim<nMax ? ` Рекомендуемые обороты ${nf(nLim)} (${recWhy}). Станок даёт до ${nf(nMax)} — если нет вибрации, поднимите вручную в плитке «Обороты S».` : ''; }
 // ручная подача: на зуб/оборот или минутная F; k — множитель перевода (n·z, n или с поправкой резьбы)
 function feedMode(id){ const b=document.querySelector('#'+id+'U button[aria-pressed="true"]'); return b?b.dataset.v:'per'; }
 function manFeed(id, k, auto){
@@ -1136,7 +1149,8 @@ function calc(){
   let vcTab = t.idx ? m.vc.rough*IDX_VC[m.iso]*(strat==='finish'?1.15:1) : m.vc[strat];
   let vc = vcTab*(1+k.vc/100)*gk[0];
   let n = vc*1000/(Math.PI*D), capped=false;
-  if(n>nMax){ n=nMax; capped=true; }
+  const nLim=nRec(g[0].startsWith('cn'), ld);
+  if(n>nLim){ n=nLim; capped=true; }
   const nAuto = n;
   const sMan = num('sMan');
   if(sMan>0){ n=Math.min(sMan,nMax); capped = sMan>nMax; }
@@ -1205,7 +1219,7 @@ function calc(){
   if(sMan>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)} об/мин. Vc = ${nf(vcFact)} м/мин.`]);
   if(fzMan>0) W.push(['info',`fz задана вручную: ${fzMan.toFixed(3)} вместо ${fzAuto.toFixed(3)} мм/зуб.`]);
   if(sMan>nMax) W.push(['bad',`Станок не даст больше ${nf(nMax)} об/мин — взято ${nf(nMax)}.`]);
-  else if(capped && !(sMan>0)) W.push(['info',`Упор в ${nf(nMax)} об/мин: табличная Vc ${nf(vc)} м/мин на Ø${D} недостижима. Добирайте производительность подачей и ap/ae.`]);
+  else if(capped && !(sMan>0)) W.push(['info',`Обороты ${nf(nLim)}: табличная Vc ${nf(vc)} м/мин на Ø${D} не достигается. Добирайте производительность подачей и ap/ae.`+recNote(nLim)]);
   if(fcap) W.push(['bad',`Подача упёрлась в ${nf(vfMax)} мм/мин станка — fz фактически ${fzFact.toFixed(3)}. Можно увеличить ae или ap.`]);
   const fitBtn=` <button type="button" class="btn fitP" data-k="${(pS1*0.9/P).toFixed(4)}">Подогнать ap под ${nf(pS1*0.9,1)} кВт</button>`;
   if(P>pS2) W.push(['bad',`Не хватит мощности: нужно ${nf(P,1)} кВт. Уменьшите ae или ap примерно в ${nf(P/pS1,1)} раза.`+fitBtn]);
@@ -1343,7 +1357,8 @@ function dCalc(){
   }
   vc*=k; f*=k;
 
-  let n=vc*1000/(Math.PI*D), capped=false; if(n>nMax){ n=nMax; capped=true; }
+  const nLim=nRec($('dGrade').value==='cn', 0);
+  let n=vc*1000/(Math.PI*D), capped=false; if(n>nLim){ n=nLim; capped=true; }
   const nAuto=n, fAuto=f;
   const sM=num('dSMan');
   if(sM>0) n=Math.min(sM,nMax);
@@ -1373,7 +1388,7 @@ function dCalc(){
 
   if(sM>0) W.unshift(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)}.`]);
   if(fM>0) W.unshift(['info',`Подача задана вручную: ${fM.toFixed(3)} вместо ${fAuto.toFixed(3)} мм/об.`]);
-  if(capped && !(sM>0)) W.push(['info',`Упор в ${nf(nMax)} об/мин — Vc ниже табличной.`]);
+  if(capped && !(sM>0)) W.push(['info',`Обороты ${nf(nLim)} — Vc ниже табличной.`+recNote(nLim)]);
   if(fcap) W.push(['bad',`Подача упёрлась в ${nf(vfMax)} мм/мин.`]);
   if(P>pS2) W.push(['bad',`Не хватит мощности (${nf(P,1)} кВт). Снизьте подачу или сверлите меньшим Ø с рассверливанием.`]);
   else if(P>pS1) W.push(['','Выше длительной мощности — допустимо на коротких отверстиях.']);
@@ -1428,7 +1443,8 @@ function tCalc(){
   let passes=tPasses(c,P) + ($('tGrade').value==='cn'?1:0) - (type==='single'?1:0);
   passes=Math.max(1,passes);
   if(type==='multi' && L>2*d) passes+=1;
-  let n=vc*1000/(Math.PI*d), capped=false; if(n>nMax){ n=nMax; capped=true; }
+  const nLim=nRec($('tGrade').value==='cn', 0);
+  let n=vc*1000/(Math.PI*d), capped=false; if(n>nLim){ n=nLim; capped=true; }
   const nAuto=n, fzAuto=fz, pAuto=passes;
   const sM=num('tSMan'), pM=Math.round(num('tPassMan'));
   if(sM>0) n=Math.min(sM,nMax); if(pM>0) passes=pM;
@@ -1487,7 +1503,7 @@ function tCalc(){
   $('tCode').textContent=g.join('\n');
 
   if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)}.`]);
-  if(capped && !(sM>0)) W.push(['info',`Упор в ${nf(nMax)} об/мин.`]);
+  if(capped && !(sM>0)) W.push(['info',`Обороты ${nf(nLim)}.`+recNote(nLim)]);
   if(tKind==='in' && d >= D-1.0825*P) W.push(['bad',`Фреза Ø${d} не войдёт в отверстие под резьбу (≈ Ø${nf(D-1.0825*P,2)}).`]);
   else if(tKind==='in' && d > 0.8*D) W.push(['',`Фреза больше 0,8·D — мало места, большая дуга контакта. Лучше ≤ 0,75·D.`]);
   if(type==='idx' && d<16) W.push(['','Пластинчатые резьбофрезы обычно от Ø16.']);
@@ -1568,6 +1584,7 @@ function cCalc(){
   const a=parseFloat($('cAng').value), ta=Math.tan(a/2*Math.PI/180);
   const Dmax=num('cDmax'), z=Math.round(num('cz'));
   const nMax=num('nMax')||12000, vfMax=num('vfMax')||10000, W=[];
+  const nLim=nRec($('cGrade').value==='cn', 0);
   if(Dmax<=0||z<=0) return;
   let n, F, vc, fz, De, Z, code=[], fShow, fUnit, fKey;
 
@@ -1581,7 +1598,7 @@ function cCalc(){
     vc = (t==='ci' ? m.vc.finish*0.9 : m.vc.finish*0.85) * gk[0];
     fz = (t==='ci' ? 0.08 : 0.04*Math.pow(Math.min(Math.max(Dmax,3),20)/10,0.8)) * C_FZK[c] * gk[1];
     if(cOp==='deburr') fz*=1.2;
-    let nA = vc*1000/(Math.PI*Math.max(De,0.5)), capped=false; if(nA>nMax){ nA=nMax; capped=true; }
+    let nA = vc*1000/(Math.PI*Math.max(De,0.5)), capped=false; if(nA>nLim){ nA=nLim; capped=true; }
     const sM=num('cSMan');
     n = sM>0 ? Math.min(sM,nMax) : nA;
     const fzA=fz, fM=manFeed('cFMan', n*z, fzA); if(fM>0) fz=fM;
@@ -1605,7 +1622,7 @@ function cCalc(){
     ];
     if(Dtop>Dmax) W.push(['bad',`Фаска не помещается на инструмент: нужен Ø ${nf(Dtop,1)} на верхней кромке, а у фрезы ${nf(Dmax,1)}. Уменьшите запас вершины или возьмите фрезу больше.`]);
     if(tip===0 && tz<0.2) W.push(['','Острие режет с нулевой скоростью — дайте запас вершины 0,3–0,5 мм.']);
-    if(capped && !(sM>0)) W.push(['info',`Рабочий Ø ${nf(De,1)} мм мал — упор в ${nf(nMax)} об/мин, Vc ниже табличной.`]);
+    if(capped && !(sM>0)) W.push(['info',`Рабочий Ø ${nf(De,1)} мм мал — обороты ${nf(nLim)}, Vc ниже табличной.`+recNote(nLim)]);
     if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nA)}.`]);
     if(fM>0) W.push(['info',`fz задана вручную.`]);
     if(cOp==='deburr') W.push(['info','Заусенцы: один проход, без СОЖ на чугуне и латуни. На алюминии подача может быть выше в 1,5–2 раза.']);
@@ -1618,7 +1635,7 @@ function cCalc(){
     else if(t==='cs'){ vc=CS_VC[c]*3*gk[0]; }
     else { vc=CS_VC[c]*gk[0]; }
     let f = (0.05 + 0.003*Dk) * C_FZK[c] * gk[1] * (t==='hss1'?1.2:1) * (t==='spot'?0.8:1);
-    let nA = vc*1000/(Math.PI*Dk), capped=false; if(nA>nMax){ nA=nMax; capped=true; }
+    let nA = vc*1000/(Math.PI*Dk), capped=false; if(nA>nLim){ nA=nLim; capped=true; }
     const sM=num('cSMan');
     n = sM>0 ? Math.min(sM,nMax) : nA;
     const fA=f, fM=manFeed('cFMan', n, fA); if(fM>0) f=fM;
@@ -1637,7 +1654,7 @@ function cCalc(){
     if(Dk>Dmax) W.push(['bad',`Ø зенковки ${nf(Dk,1)} больше инструмента (${nf(Dmax,1)}).`]);
     if(Dk<=hole) W.push(['bad','Ø зенковки должен быть больше отверстия.']);
     if(t==='hss3') W.push(['','Многозубая HSS дрожит: при вибрации снижайте обороты, подачу не снижайте. Однозубая с отверстием даёт чище.']);
-    if(capped && !(sM>0)) W.push(['info',`Упор в ${nf(nMax)} об/мин.`]);
+    if(capped && !(sM>0)) W.push(['info',`Обороты ${nf(nLim)}.`+recNote(nLim)]);
     if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nA)}.`]);
     W.push(['info','Глубина Z считается от верха детали до острия зенковки (без притупления вершины). Если у зенковки срезана вершина — Z = −(Ø зенковки − Ø вершины)/2 / tg(α/2).']);
   }
@@ -1701,7 +1718,8 @@ function kCalc(){
   if(kHole==='blind') k*=0.9;
   if(ld>3) k*=0.6; else if(ld>2) k*=0.8;
   vc*=k;
-  let n=vc*1000/(Math.PI*D); if(n>nMax) n=nMax;
+  const nLim=nRec($('kGrade').value==='cn', 0);
+  let n=vc*1000/(Math.PI*D); if(n>nLim) n=nLim;
   const nA=n, sM=num('kSMan'); if(sM>0) n=Math.min(sM,nMax);
   $('kSMan').placeholder='авто '+nf(nA);
   n=Math.round(n);
@@ -1779,7 +1797,8 @@ function qCalc(){
     if(!fine) W.push(['info','Черновая двухрезцовая: подача 0,3 мм/об — это 0,15 на каждый резец.']);
     if(ld>4 && ld<=6) W.push(['',`Вылет ${nf(ld,1)}×D: Vc ×0,8, f ×0,7.`]);
   }
-  let n=vc*1000/(Math.PI*D); if(n>nMax) n=nMax;
+  const nLim=nRec($('qGrade').value==='cn', qOp==='bore'?num('qLD'):0);
+  let n=vc*1000/(Math.PI*D); if(n>nLim){ n=nLim; W.push(['info',`Обороты ${nf(nLim)}.`+recNote(nLim)]); }
   const nA=n, fA=f, sM=num('qSMan');
   if(sM>0) n=Math.min(sM,nMax);
   const fM=manFeed('qFMan', n, fA); if(fM>0) f=fM;
@@ -1813,7 +1832,8 @@ function bCalc(){
     const ang=Math.min(Math.PI/2, sl*Math.PI/180 + Math.acos(1-2*Math.min(ap,D/2)/D));
     const De=D*Math.sin(ang);
     const vc=m.vc.finish*gk[0];
-    let n=vc*1000/(Math.PI*Math.max(De,0.1)), capped=false; if(n>nMax){ n=nMax; capped=true; }
+    const nLim=nRec($('bGrade').value==='cn', 0);
+    let n=vc*1000/(Math.PI*Math.max(De,0.1)), capped=false; if(n>nLim){ n=nLim; capped=true; }
     const thin=Math.min(D/Math.max(De,0.01),2.5);
     const fz=m.ff*Math.pow(Math.min(Math.max(D,1),20)/10,0.8)*thin*gk[1];
     const F=n*z*fz, vcF=n*Math.PI*De/1000;
@@ -1821,7 +1841,7 @@ function bCalc(){
     const hf=fz*fz/(4*D)*1000;
     $('bN').textContent=nf(n); $('bF').textContent=nf(F); $('bDe').textContent=nf(De,2); $('bVc').textContent=nf(vcF);
     $('bFz').textContent=fz.toFixed(3); $('bAe').textContent=nf(ae,3); $('bRa').textContent=nf(h*1000/4,2); $('bHf').textContent=nf(hf,2);
-    if(capped) W.push(['info',`Рабочий Ø ${nf(De,2)} мм — упор в ${nf(nMax)} об/мин, фактическая Vc ${nf(vcF)} м/мин ниже табличной ${nf(vc)}.`]);
+    if(capped) W.push(['info',`Рабочий Ø ${nf(De,2)} мм — обороты ${nf(nLim)}, фактическая Vc ${nf(vcF)} м/мин ниже табличной ${nf(vc)}.`]);
     if(sl<10 && ap<0.1*D) W.push(['','Пологая поверхность и малая ap: режет почти центр шара, где скорость близка к нулю. Наклоните деталь на 10–15° или фрезеруйте с подъёмом.']);
     if(thin>1.05) W.push(['info',`Утонение стружки на малой глубине: fz поднята ×${nf(thin,2)}.`]);
     if(hf>num('bH')) W.push(['',`Гребешок от подачи (${nf(hf,1)} мкм) больше заданного — уменьшите fz.`]);
@@ -2000,13 +2020,13 @@ barUpd();
 </script>
 <script>
 // параметры станка запоминаются в этом браузере
-['nMax','pS1','pS2','vfMax','eta'].forEach(id=>{
+['nMax','nWork','pS1','pS2','vfMax','eta'].forEach(id=>{
   const el=$(id);
   try{ const v=localStorage.getItem('m_'+id); if(v){ el.value=v; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); } }catch(e){}
   el.addEventListener('input',()=>{ try{ localStorage.setItem('m_'+id, el.value); }catch(e){} });
 });
 // пересчёт активной вкладки при смене предела оборотов
-$('nMax').addEventListener('input',()=>{ try{ const b=document.querySelector('#mode button[aria-pressed="true"]'); setMode(b?b.dataset.v:'mill'); }catch(e){} });
+['nMax','nWork'].forEach(id=>$(id).addEventListener('input',()=>{ try{ const b=document.querySelector('#mode button[aria-pressed="true"]'); setMode(b?b.dataset.v:'mill'); }catch(e){} }));
 </script>
 <script>
 // ===== S и F правятся прямо в результате =====
@@ -2104,7 +2124,7 @@ Object.entries(EXP_TILE).forEach(([id,txt])=>{
 const EXP_INPUT = {
   dia:'диаметр фрезы', z:'зубьев у фрезы или пластин в корпусе', ld:'длина от патрона до кончика / диаметр', ap:'глубина по Z за проход', ae:'ширина захвата сбоку',
   clamp:'как держится деталь — от этого допустимая глубина', toolType:'монолит или корпус со сменными пластинами', grade:'класс инструмента меняет режимы',
-  nMax:'потолок оборотов для всех расчётов', mat:'марка обрабатываемого материала',
+  nMax:'больше станок не даёт', nWork:'до скольки считать рекомендуемые', mat:'марка обрабатываемого материала',
   dD:'диаметр сверла', dL:'глубина отверстия по полному диаметру', kL:'длина резьбы в отверстии', tL:'длина резьбы', td:'диаметр резьбофрезы', tz:'зубьев у резьбофрезы',
   qD:'диаметр готового отверстия', qL:'глубина обработки', qAp:'сколько снимаем на сторону', qLD:'длина расточной оправки / диаметр',
   cC:'катет фаски', cTip:'диаметр притупления вершины, 0 — острая', cT:'насколько вершина ниже фаски, чтобы не резать кончиком', cDmax:'наибольший диаметр инструмента',
