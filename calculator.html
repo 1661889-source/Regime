@@ -326,15 +326,6 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
         </div>
       </div>
 
-      <div class="card fields">
-        <h2 style="margin:0">Своя поправка для марки</h2>
-        <div class="row">
-          <div><label class="label" for="kVc">Vc, %</label><input id="kVc" type="number" value="0" step="5"></div>
-          <div><label class="label" for="kFz">fz, %</label><input id="kFz" type="number" value="0" step="5"></div>
-        </div>
-        <div class="hint" id="kHint">Запоминается в этом браузере отдельно для каждой марки. +20 = на 20% больше табличного.</div>
-      </div>
-
     </div>
 
     <div class="card res">
@@ -1141,7 +1132,7 @@ function calc(){
   const D=num('dia'), z=Math.round(num('z')), ld=num('ld');
   const ap=num('ap'), ae=num('ae');
   const nMax=num('nMax')||12000, pS1=num('pS2')||11, pS2=num('pS2')||11, vfMax=num('vfMax')||10000, eta=num('eta')||0.8;
-  const k={vc:num('kVc'), fz:num('kFz')};
+  const k={vc:0, fz:0};
   const W=[];
   if(D<=0||z<=0||ap<=0||ae<=0){ return; }
   const aeR = Math.min(ae/D,1);
@@ -1248,7 +1239,6 @@ function calc(){
 }
 
 function onMat(){
-  const k=loadK(sel.value); $('kVc').value=k.vc; $('kFz').value=k.fz;
   try{ localStorage.setItem('last_mat', sel.value); }catch(e){}
   recApAe(); calc();
 }
@@ -1270,7 +1260,6 @@ $('dia').addEventListener('input',()=>{ recApAe(); calc(); });
 $('resetApAe').addEventListener('click',()=>{ recApAe(); calc(); });
 initFeedToggle('fzMan', ()=>calc());
 $('resetMan').addEventListener('click',()=>{ $('sMan').value=''; $('fzMan').value=''; calc(); });
-['kVc','kFz'].forEach(id=>$(id).addEventListener('input',()=>{ saveK(sel.value,{vc:num('kVc'),fz:num('kFz')}); calc(); }));
 ['z','ld','ap','ae','nMax','pS1','pS2','vfMax','eta','sMan','fzMan'].forEach(id=>{ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
 
 fillGrades(); syncStratButtons(); onMat();
