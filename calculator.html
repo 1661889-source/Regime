@@ -178,11 +178,11 @@ label + .exp, .flab + .exp{margin:-3px 0 4px}
 .tbl.stacked td:first-child::before{display:none}
 .tbl.stacked td input{max-width:58%}
 .tbl.stacked tr.grp td{display:block; text-align:left}
-/* подсказка по трохоиде — только при наведении (на телефоне — несколько секунд после нажатия) */
-.stratbox{position:relative}
-.tip{position:absolute; left:0; right:0; top:100%; z-index:30; margin-top:6px; padding:10px 12px; background:var(--surface); color:var(--fg); border:1px solid var(--accent); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.15); font-size:12.5px; line-height:1.45; opacity:0; visibility:hidden; transition:opacity .15s}
-.stratbox:has(button[data-v="hsm"]:hover) .tip, .tip.show{opacity:1; visibility:visible}
-@media (prefers-reduced-motion:reduce){ .tip{transition:none} }
+/* подсказка по трохоиде — по кнопке «?», раскрывается в потоке и ничего не перекрывает */
+.labrow{display:flex; align-items:center; gap:8px; margin-bottom:5px}
+.qbtn{width:22px; height:22px; border-radius:50%; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:700; font-size:12px; line-height:1; cursor:pointer; padding:0}
+.qbtn[aria-expanded="true"]{background:var(--accent); color:var(--accent-fg)}
+.tip{margin-top:8px; padding:10px 12px; background:var(--bg); color:var(--fg); border-left:3px solid var(--accent); border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.45}
 .saveBox{display:flex; flex-direction:column; gap:8px; margin-top:12px; align-items:flex-start}
 .sv-form{display:flex; flex-direction:column; gap:8px; width:100%}
 .lifein input{min-width:90px}
@@ -273,13 +273,13 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
           <div><label class="label" for="grade">Класс инструмента</label><select id="grade"></select></div>
         </div>
         <div class="stratbox">
-          <span class="label">Стратегия</span>
+          <div class="labrow"><span class="label" style="margin:0">Стратегия</span><button type="button" class="qbtn" id="hsmQ" aria-expanded="false" aria-controls="hsmTip" title="Что такое трохоида">?</button></div>
           <div class="seg" id="strat">
             <button type="button" data-v="rough" aria-pressed="true">Черновая</button>
             <button type="button" data-v="hsm" aria-pressed="false">Трохоида / HSM</button>
             <button type="button" data-v="finish" aria-pressed="false">Чистовая</button>
           </div>
-          <div class="hint tip" id="hsmTip">Трохоида: фреза идёт петлями на всю длину режущей части (ap 2–3×D), забирая сбоку мало (ae 5–15% D), зато на большой подаче. В SolidCAM это iMachining, в NX — Adaptive / Dynamic.</div>
+          <div class="hint tip" id="hsmTip" hidden>Трохоида: фреза идёт петлями на всю длину режущей части (ap 2–3×D), забирая сбоку мало (ae 5–15% D), зато на большой подаче. В SolidCAM это iMachining, в NX — Adaptive / Dynamic.</div>
         </div>
         <div>
           <label class="label" for="clamp">Закрепление</label>
@@ -2117,10 +2117,5 @@ Object.entries(EXP_INPUT).forEach(([id,txt])=>{
 });
 </script>
 <script>
-// на сенсорном экране наведения нет — показываем подсказку на 4 с после нажатия на «Трохоида»
-(function(){
-  const b=document.querySelector('#strat button[data-v="hsm"]'), tip=$('hsmTip'); let t;
-  b.addEventListener('touchend',()=>{ tip.classList.add('show'); clearTimeout(t); t=setTimeout(()=>tip.classList.remove('show'),4000); },{passive:true});
-  document.addEventListener('touchstart',e=>{ if(!e.target.closest('#strat')) tip.classList.remove('show'); },{passive:true});
-})();
+$('hsmQ').addEventListener('click',()=>{ const t=$('hsmTip'), open=t.hidden; t.hidden=!open; $('hsmQ').setAttribute('aria-expanded', String(open)); });
 </script>
