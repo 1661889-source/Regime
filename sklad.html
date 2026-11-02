@@ -1,0 +1,476 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Склад инструмента</title>
+<style>
+/* layout: слева ввод, справа липкая панель результата; ниже справочные таблицы */
+:root{
+  --bg:#f3f2ef; --surface:#ffffff; --border:#dcd9d2;
+  --fg:#1c1b19; --fg-dim:#6b6860;
+  --accent:#b5531e; --accent-fg:#ffffff;
+  --ok:#2f7d4a; --warn:#b07a10; --bad:#b3261e;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --sans: -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15140f; --surface:#1f1d17; --border:#38352c;
+    --fg:#ece8df; --fg-dim:#978f7d;
+    --accent:#e07b3a; --accent-fg:#15140f;
+    --ok:#5cbf7d; --warn:#e0a83a; --bad:#ef6b5e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15140f; --surface:#1f1d17; --border:#38352c;
+  --fg:#ece8df; --fg-dim:#978f7d;
+  --accent:#e07b3a; --accent-fg:#15140f;
+  --ok:#5cbf7d; --warn:#e0a83a; --bad:#ef6b5e;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--sans); font-size:14px;
+  margin:0; padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px));
+  padding-block:28px 48px;
+}
+.wrap{max-width:1000px; margin:0 auto}
+h1{font-size:20px; font-weight:700; margin:0 0 2px; letter-spacing:-.01em}
+h2{font-size:15px; font-weight:700; margin:0 0 10px}
+.sub{color:var(--fg-dim); font-size:13px; margin:0 0 20px}
+.grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start}
+@media (max-width:760px){ .grid{grid-template-columns:minmax(0,1fr)} }
+.card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px}
+.stack{display:flex; flex-direction:column; gap:14px}
+.label{display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--fg-dim); margin-bottom:5px}
+.row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+.row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px}
+.fields{display:flex; flex-direction:column; gap:12px}
+select,input{
+  width:100%; min-width:0; background:var(--bg); color:var(--fg); border:1px solid var(--border);
+  border-radius:7px; padding:8px 9px; font-size:14px; font-family:var(--sans); font-variant-numeric:tabular-nums;
+}
+select:focus,input:focus,button:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.hint{font-size:11px; color:var(--fg-dim); margin-top:4px}
+.seg{display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--border); border-radius:8px; overflow:hidden}
+.seg button{background:var(--bg); color:var(--fg); border:0; border-right:1px solid var(--border); padding:9px 4px; font:inherit; font-size:13px; cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-fg); font-weight:600}
+.btn{background:transparent; color:var(--accent); border:1px solid var(--border); border-radius:7px; padding:7px 10px; font:inherit; font-size:12px; cursor:pointer}
+.res{position:sticky; top:calc(env(safe-area-inset-top,0px) + 12px)}
+.tiles{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.tile{border:1px solid var(--border); border-radius:8px; padding:11px 12px; background:var(--bg)}
+.tile .k{font-size:11px; color:var(--fg-dim); text-transform:uppercase; letter-spacing:.05em}
+.tile .v{font-family:var(--mono); font-size:24px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.15; margin-top:2px}
+.tile .u{font-size:12px; color:var(--fg-dim)}
+.tile.main{border-color:var(--accent)}
+.small{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:10px}
+.small .tile .v{font-size:17px}
+.power{margin-top:12px}
+.bar{height:8px; border-radius:4px; background:var(--border); overflow:hidden; margin-top:6px}
+.bar i{display:block; height:100%; width:0; background:var(--ok); transition:width .2s}
+.ptext{display:flex; justify-content:space-between; font-size:12px; color:var(--fg-dim); font-variant-numeric:tabular-nums}
+.pill{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; border:1px solid currentColor}
+.warns{display:flex; flex-direction:column; gap:6px; margin-top:12px; font-size:13px; line-height:1.45}
+.warns div{padding:8px 10px; border-radius:6px; border-left:3px solid var(--warn); background:var(--bg)}
+.warns div.bad{border-left-color:var(--bad)}
+.warns div.info{border-left-color:var(--accent)}
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums}
+.tbl th{text-align:left; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--fg-dim); padding:0 10px 8px 0; border-bottom:1px solid var(--border); white-space:nowrap}
+.tbl td{padding:8px 10px 8px 0; border-bottom:1px solid var(--border); vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td:first-child{font-weight:600; white-space:nowrap}
+.tbl tr.grp td{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); font-weight:700; padding-top:14px}
+.tbl tr.sel td{background:color-mix(in srgb, var(--accent) 12%, transparent)}
+.seg2{grid-template-columns:1fr 1fr}
+#mode{display:flex; flex-wrap:wrap; gap:6px; border:0; overflow:visible; border-radius:0}
+#mode button{border:1px solid var(--border); border-radius:7px; padding:8px 11px}
+#mode button:last-child{border-right:1px solid var(--border)}
+[hidden]{display:none!important}
+#mode button{font-size:13px}
+.mode{max-width:560px}
+.code-head{display:flex; justify-content:space-between; align-items:center; margin-top:14px; margin-bottom:6px}
+.code{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin:0; font-family:var(--mono); font-size:12.5px; line-height:1.55; overflow:auto; max-height:320px; white-space:pre; color:var(--fg)}
+.top{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-bottom:14px}
+.top select#mat{max-width:420px}
+.row4{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
+.span2{grid-column:span 2}
+@media (max-width:760px){ .row4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.fgroup{margin-top:16px; display:flex; flex-direction:column; gap:8px}
+textarea{width:100%; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:7px; padding:8px 9px; font:inherit; font-size:14px; resize:vertical}
+.btn-main{background:var(--accent); color:var(--accent-fg); border-color:var(--accent); font-weight:600}
+.btn-del{color:var(--bad)}
+label.btn{display:inline-block}
+.filled{outline:2px solid var(--ok); outline-offset:0}
+.photos{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px}
+.ph{position:relative; width:88px; height:88px; border-radius:8px; overflow:hidden; border:1px solid var(--border); background:var(--bg)}
+.ph img{width:100%; height:100%; object-fit:cover}
+.ph-x{position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(0,0,0,.6); color:#fff; cursor:pointer; line-height:22px; padding:0}
+.ph-tag{position:absolute; left:0; right:0; bottom:0; font-size:10px; background:rgba(0,0,0,.55); color:#fff; text-align:center}
+.isos{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; padding-top:6px}
+.isos label{display:flex; gap:5px; align-items:center}
+.isos input{width:auto}
+.invgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px}
+.icard{display:flex; gap:12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; cursor:pointer; min-width:0}
+.icard:hover{border-color:var(--accent)}
+.ithumb{flex:0 0 76px; height:76px; border-radius:8px; background:var(--bg); border:1px solid var(--border); overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--fg-dim); text-align:center; padding:4px}
+.ithumb img{width:100%; height:100%; object-fit:cover}
+.ibody{min-width:0; flex:1; display:flex; flex-direction:column; gap:5px}
+.iname{font-weight:600; font-size:14px; line-height:1.3; overflow-wrap:anywhere}
+.chips{display:flex; flex-wrap:wrap; gap:4px}
+.chip{font-size:11px; padding:1px 7px; border-radius:20px; background:var(--bg); border:1px solid var(--border); font-variant-numeric:tabular-nums}
+.irow{display:flex; justify-content:space-between; align-items:center; gap:8px}
+.qty{display:flex; align-items:center; gap:6px; font-size:13px}
+.qty.low b{color:var(--bad)}
+.qb{width:26px; height:26px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); cursor:pointer; font-size:15px; line-height:1}
+.st-new{color:var(--ok)} .st-work{color:var(--accent)} .st-regrind{color:var(--warn)} .st-worn{color:var(--bad)} .st-off{color:var(--fg-dim)}
+.legend summary{font-weight:600; font-size:13px}
+.legend .tbl td:first-child{font-family:var(--mono)}
+.flab{display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:5px; flex-wrap:wrap}
+.seg.mini{display:inline-grid; grid-template-columns:auto auto; border-radius:6px}
+.seg.mini button{padding:3px 7px; font-size:11px}
+.saveBox{display:flex; flex-direction:column; gap:8px; margin-top:12px; align-items:flex-start}
+.sv-form{display:flex; flex-direction:column; gap:8px; width:100%}
+.lifein input{min-width:90px}
+.lifein td{vertical-align:middle}
+@media (max-width:760px){ .top{grid-template-columns:minmax(0,1fr)} }
+.p{font-size:13px; color:var(--fg-dim); line-height:1.55; margin:10px 0 0; max-width:75ch}
+.p b{color:var(--fg)}
+.src{font-size:12px; color:var(--fg-dim); line-height:1.7}
+.src a{color:var(--accent)}
+details summary{cursor:pointer; font-weight:600; font-size:13px}
+@media (prefers-reduced-motion:reduce){ .bar i{transition:none} }
+
+/* iPhone: шрифт полей ≥16px — иначе Safari приближает страницу при вводе; без прокрутки вбок */
+html{overflow-x:clip}
+body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:100%; text-size-adjust:100%}
+.wrap{max-width:min(1000px,100%)}
+@media (max-width:760px){
+  input, select, textarea, .tile .tin{font-size:16px !important}
+  .seg button{font-size:14px}
+}
+</style>
+<style>
+.invgrid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+@media (max-width:760px){ .invgrid{grid-template-columns:minmax(0,1fr)} #invForm{padding:12px} }
+a.btn{text-decoration:none; display:inline-block}
+</style>
+
+<div class="wrap">
+  <h1>Склад инструмента</h1>
+  <p class="sub">Карточки инструмента с фото и распознаванием маркировки · <a href="https://claude.ai/artifact/JAidqSE1hEWsSEHjadfJiS" target="_blank" rel="noopener" style="color:var(--accent)">Калькулятор режимов</a></p>
+  <div id="invWrap">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px">
+        <h2 style="margin:0">Инструмент на складе</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button type="button" class="btn" id="invAdd">+ Добавить вручную</button>
+          <label class="btn btn-main" id="invPhotoLbl" for="invPhotoNew">Добавить по фото</label>
+          <input id="invPhotoNew" type="file" accept="image/*" capture="environment" multiple hidden>
+        </div>
+      </div>
+      <div class="row4" style="margin-bottom:12px">
+        <div><label class="label" for="invQ">Поиск</label><input id="invQ" placeholder="название, артикул, ячейка"></div>
+        <div><label class="label" for="invType">Тип</label><select id="invType"><option value="">Все</option></select></div>
+        <div><label class="label" for="invIso">Материал (ISO)</label>
+          <select id="invIso"><option value="">Все</option><option value="P">P — сталь</option><option value="M">M — нержавейка</option><option value="K">K — чугун</option><option value="N">N — Al, медь</option><option value="S">S — титан</option></select></div>
+        <div><label class="label" for="invState">Состояние</label>
+          <select id="invState"><option value="">Все, кроме списанных</option><option value="low">Мало на складе</option><option value="new">Новый</option><option value="work">В работе</option><option value="regrind">Переточен</option><option value="worn">Изношен</option><option value="off">Списан</option></select></div>
+      </div>
+      <span class="hint" id="invStatus">Загрузка…</span>
+    </div>
+
+    <div class="card" id="invForm" hidden style="margin-top:14px">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">
+        <h2 style="margin:0" id="fTitle">Новый инструмент</h2>
+        <span class="hint" id="fRecMsg"></span>
+      </div>
+      <div class="photos" id="fPhotos"></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 4px">
+        <label class="btn" for="fPhotoIn">Добавить фото</label>
+        <input id="fPhotoIn" type="file" accept="image/*" capture="environment" multiple hidden>
+        <button type="button" class="btn btn-main" id="fRecog">Распознать по фото</button>
+      </div>
+      <span class="hint">Снимайте маркировку крупно: этикетку, упаковку, надпись на хвостовике, пластину с обозначением. Можно несколько фото.</span>
+
+      <div class="fgroup"><span class="label">Основное</span>
+        <div class="row4">
+          <div class="span2"><label class="label" for="f_name">Название</label><input id="f_name" placeholder="Фреза Ø10 4z HRC55"></div>
+          <div><label class="label" for="f_type">Тип</label><select id="f_type"></select></div>
+          <div><label class="label" for="f_cls">Класс</label><select id="f_cls"><option value="prem">Премиум</option><option value="mid">Средний</option><option value="cn">Китай</option></select></div>
+          <div><label class="label" for="f_maker">Производитель</label><input id="f_maker"></div>
+          <div class="span2"><label class="label" for="f_article">Артикул / обозначение</label><input id="f_article" placeholder="APMT1604PDER-M2, R216.34-10045…"></div>
+          <div><label class="label" for="f_sup">Поставщик</label><input id="f_sup"></div>
+        </div>
+      </div>
+      <div class="fgroup"><span class="label">Геометрия</span>
+        <div class="row4">
+          <div><label class="label" for="f_D">Ø, мм</label><input id="f_D" type="number" step="0.01"></div>
+          <div><label class="label" for="f_z">Зубьев / пластин</label><input id="f_z" type="number" step="1"></div>
+          <div><label class="label" for="f_Lc">Длина реж. части, мм</label><input id="f_Lc" type="number" step="0.1"></div>
+          <div><label class="label" for="f_L">Общая длина, мм</label><input id="f_L" type="number" step="0.1"></div>
+          <div><label class="label" for="f_shank">Ø хвостовика, мм</label><input id="f_shank" type="number" step="0.1"></div>
+          <div><label class="label" for="f_re">Радиус rε / R, мм</label><input id="f_re" type="number" step="0.05"></div>
+          <div><label class="label" for="f_angle">Угол, °</label><input id="f_angle" type="number" step="1" placeholder="вершина, фаска"></div>
+          <div><label class="label" for="f_thread">Резьба</label><input id="f_thread" placeholder="M10×1,5"></div>
+        </div>
+      </div>
+      <div class="fgroup"><span class="label">Материал инструмента и назначение</span>
+        <div class="row4">
+          <div><label class="label" for="f_coat">Покрытие</label><input id="f_coat" placeholder="AlTiN, TiAlN, DLC, без"></div>
+          <div><label class="label" for="f_grade">Сплав / марка пластины</label><input id="f_grade" placeholder="VP15TF, YBG205, HSS-E"></div>
+          <div class="span2"><span class="label">Для материалов</span>
+            <div class="isos" id="f_iso">
+              <label><input type="checkbox" value="P"> P сталь</label><label><input type="checkbox" value="M"> M нерж.</label><label><input type="checkbox" value="K"> K чугун</label><label><input type="checkbox" value="N"> N Al/Cu</label><label><input type="checkbox" value="S"> S титан</label><label><input type="checkbox" value="H"> H закал.</label>
+            </div></div>
+        </div>
+      </div>
+      <div class="fgroup"><span class="label">Режимы производителя</span>
+        <div class="row4">
+          <div><label class="label" for="f_vc">Vc, м/мин</label><input id="f_vc" type="number" step="1"></div>
+          <div><label class="label" for="f_fz">fz или f, мм</label><input id="f_fz" type="number" step="0.001"></div>
+          <div><label class="label" for="f_ap">ap, мм</label><input id="f_ap" type="number" step="0.1"></div>
+          <div><label class="label" for="f_ae">ae, мм</label><input id="f_ae" type="number" step="0.1"></div>
+        </div>
+      </div>
+      <div class="fgroup"><span class="label">Склад и учёт</span>
+        <div class="row4">
+          <div><label class="label" for="f_qty">Количество, шт.</label><input id="f_qty" type="number" step="1" min="0" value="1"></div>
+          <div><label class="label" for="f_min">Мин. остаток</label><input id="f_min" type="number" step="1" min="0" value="0"></div>
+          <div><label class="label" for="f_place">Место / ячейка</label><input id="f_place" placeholder="Шкаф 2, ящик 4"></div>
+          <div><label class="label" for="f_state">Состояние</label>
+            <select id="f_state"><option value="new">Новый</option><option value="work">В работе</option><option value="regrind">Переточен</option><option value="worn">Изношен</option><option value="off">Списан</option></select></div>
+          <div><label class="label" for="f_rg">Переточек</label><input id="f_rg" type="number" step="1" min="0" value="0"></div>
+          <div><label class="label" for="f_price">Цена, ₽ за шт.</label><input id="f_price" type="number" step="10" min="0"></div>
+          <div><label class="label" for="f_date">Дата покупки</label><input id="f_date" type="date"></div>
+          <div><label class="label" for="f_machine">Станок</label><input id="f_machine" placeholder="VDLS-850"></div>
+        </div>
+      </div>
+      <div class="fgroup"><label class="label" for="f_note">Примечание</label><textarea id="f_note" rows="2" placeholder="Что режет хорошо, на чём сломалась, какой вылет"></textarea></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px">
+        <button type="button" class="btn btn-main" id="fSave">Сохранить</button>
+        <button type="button" class="btn" id="fCancel">Отмена</button>
+        <a class="btn" id="fApply" hidden href="https://claude.ai/artifact/JAidqSE1hEWsSEHjadfJiS" target="_blank" rel="noopener">Открыть калькулятор режимов</a>
+        <button type="button" class="btn btn-del" id="fDel" hidden>Удалить</button>
+        <span class="hint" id="fMsg" style="align-self:center"></span>
+      </div>
+    </div>
+
+    <div class="invgrid" id="invGrid" style="margin-top:14px"></div>
+    <p class="p" id="invEmpty" hidden>Склад пока пуст. Нажмите «Добавить по фото» — сфотографируйте этикетку или маркировку, поля заполнятся сами, останется проверить и сохранить.</p>
+  </div>
+
+
+</div>
+<script>
+const $ = id=>document.getElementById(id);
+const nf = (n,d=0)=>n.toLocaleString('ru-RU',{maximumFractionDigits:d,minimumFractionDigits:d});
+function num(id){ const v=parseFloat($(id).value); return isFinite(v)?v:0; }
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function segInit(id, onPick){ document.querySelectorAll('#'+id+' button').forEach(b=>b.addEventListener('click',()=>{ document.querySelectorAll('#'+id+' button').forEach(x=>x.setAttribute('aria-pressed', x===b?'true':'false')); onPick(b.dataset.v); })); }
+</script>
+<script>
+// ===== Склад инструмента: карточки, фото, распознавание =====
+const INV_TYPES = [
+  ['endmill','Фреза концевая монолитная'],['ballmill','Фреза сферическая (шаровая)'],['indexmill','Фреза корпусная / торцевая'],['insert','Пластина сменная'],
+  ['drill','Сверло монолитное'],['udrill','Сверло корпусное'],['tap','Метчик'],['threadmill','Резьбофреза'],['reamer','Развёртка'],['boring','Расточная головка / резец'],
+  ['chamfer','Фасочная фреза'],['csink','Зенковка'],['spot','Центровка / спот-сверло'],['other','Другое']];
+const TYPE_NAME = Object.fromEntries(INV_TYPES);
+const STATE_NAME = {new:'Новый',work:'В работе',regrind:'Переточен',worn:'Изношен',off:'Списан'};
+const F_NUM = ['D','z','Lc','L','shank','re','angle','vc','fz','ap','ae','qty','min','rg','price'];
+const F_TXT = ['name','type','cls','maker','article','sup','thread','coat','grade','place','state','date','machine','note'];
+$('f_type').innerHTML = INV_TYPES.map(t=>`<option value="${t[0]}">${t[1]}</option>`).join('');
+$('invType').innerHTML = '<option value="">Все</option>' + INV_TYPES.map(t=>`<option value="${t[0]}">${t[1]}</option>`).join('');
+
+let INV=null, ASSETS=null, SAMPLE=null, invRows=[], invEdit=null, fPhotos=[], fNewBlobs=[];
+const imgUrl = id => '/_blob/' + id;
+
+
+// уменьшить фото перед загрузкой и распознаванием
+async function shrink(file){
+  try{
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1600/Math.max(bmp.width,bmp.height));
+    const c = document.createElement('canvas'); c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
+    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+    return await new Promise(r=>c.toBlob(b=>r(b||file),'image/jpeg',0.85));
+  }catch(e){ return file; }
+}
+
+function fClear(){
+  F_NUM.forEach(k=>$('f_'+k).value=''); F_TXT.forEach(k=>{ const el=$('f_'+k); if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; });
+  $('f_qty').value=1; $('f_min').value=0; $('f_rg').value=0; $('f_state').value='new'; $('f_cls').value='mid';
+  document.querySelectorAll('#f_iso input').forEach(i=>i.checked=false);
+  document.querySelectorAll('.filled').forEach(e=>e.classList.remove('filled'));
+  fPhotos=[]; fNewBlobs=[]; renderFPhotos(); $('fMsg').textContent=''; $('fRecMsg').textContent='';
+}
+function fOpen(row){
+  fClear(); invEdit=row||null;
+  $('fTitle').textContent = row ? 'Карточка инструмента' : 'Новый инструмент';
+  $('fDel').hidden = !row; $('fApply').hidden = !row;
+  if(row){
+    F_NUM.forEach(k=>{ if(row[k]!=null && row[k]!=='') $('f_'+k).value=row[k]; });
+    F_TXT.forEach(k=>{ if(row[k]!=null) $('f_'+k).value=row[k]; });
+    document.querySelectorAll('#f_iso input').forEach(i=>i.checked=(row.iso||[]).includes(i.value));
+    fPhotos=(row.photos||[]).slice(); renderFPhotos();
+  }
+  $('invForm').hidden=false; $('invForm').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function fCollect(){
+  const d={};
+  F_NUM.forEach(k=>{ const v=parseFloat($('f_'+k).value); d[k]=isFinite(v)?v:null; });
+  F_TXT.forEach(k=>{ d[k]=$('f_'+k).value.trim(); });
+  d.iso=[...document.querySelectorAll('#f_iso input:checked')].map(i=>i.value);
+  d.photos=fPhotos.slice();
+  if(!d.name){ d.name=[TYPE_NAME[d.type]||'Инструмент', d.D?('Ø'+d.D):'', d.z?(d.z+'z'):'', d.maker].filter(Boolean).join(' '); }
+  return d;
+}
+function renderFPhotos(){
+  const items = fPhotos.map((id,i)=>`<div class="ph"><img src="${imgUrl(id)}" alt=""><button type="button" class="ph-x" data-i="${i}" data-k="s" aria-label="Убрать фото">×</button></div>`)
+    .concat(fNewBlobs.map((b,i)=>`<div class="ph"><img src="${b.url}" alt=""><span class="ph-tag">${b.id?'':'не загружено'}</span><button type="button" class="ph-x" data-i="${i}" data-k="n" aria-label="Убрать фото">×</button></div>`));
+  $('fPhotos').innerHTML = items.join('') || '<span class="hint">Фото нет</span>';
+}
+$('fPhotos').addEventListener('click',e=>{
+  const b=e.target.closest('.ph-x'); if(!b) return; const i=+b.dataset.i;
+  if(b.dataset.k==='s') fPhotos.splice(i,1); else { URL.revokeObjectURL(fNewBlobs[i].url); fNewBlobs.splice(i,1); }
+  renderFPhotos();
+});
+async function addPhotos(files){
+  for(const f of files){
+    const blob=await shrink(f);
+    const item={blob, url:URL.createObjectURL(blob), id:null};
+    fNewBlobs.push(item);
+    if(ASSETS){
+      try{ const r=await ASSETS.upload(blob,{contentType:'image/jpeg'}); item.id=r.id; fPhotos.push(r.id); fNewBlobs.splice(fNewBlobs.indexOf(item),1); URL.revokeObjectURL(item.url); }
+      catch(e){ $('fMsg').textContent='Фото не загрузилось на сервер — для распознавания оно всё равно используется.'; }
+    }
+  }
+  renderFPhotos();
+}
+$('fPhotoIn').addEventListener('change',async e=>{ const fs=[...e.target.files]; e.target.value=''; await addPhotos(fs); });
+$('invPhotoNew').addEventListener('change',async e=>{ const fs=[...e.target.files]; e.target.value=''; fOpen(null); await addPhotos(fs); recognize(); });
+$('invAdd').addEventListener('click',()=>fOpen(null));
+$('fCancel').addEventListener('click',()=>{ $('invForm').hidden=true; invEdit=null; });
+
+// распознавание
+const REC_PROMPT = `Ты технолог металлообработки. На фото — режущий инструмент, его упаковка, этикетка или маркировка (фреза, пластина, сверло, метчик, развёртка и т.п.).
+Прочитай всё, что видно, и верни ТОЛЬКО JSON-объект с ключами:
+{"name": строка — короткое понятное название по-русски, напр. "Фреза Ø10 4z HRC55 AlTiN",
+ "type": одно из ${JSON.stringify(INV_TYPES.map(t=>t[0]))},
+ "cls": "prem" (Sandvik, Iscar, Seco, Kennametal, Walter, Mitsubishi, OSG, Emuge, Guhring, Garant, Helical, Harvey и т.п.), "mid" (ZCC-CT, YG-1, Korloy, Pramet, Dormer, Taegutec, Kyocera, Nikko, BeltTools и т.п.) или "cn" (безымянный китайский, маркировка вида HRC45/HRC55 без бренда),
+ "maker": производитель, "article": полное обозначение/артикул как написано (напр. "APMT1604PDER-M2"),
+ "D": диаметр мм, "z": число зубьев или пластин, "Lc": длина режущей части мм, "L": общая длина мм, "shank": диаметр хвостовика мм,
+ "re": радиус при вершине или радиус сферы мм, "angle": угол в градусах (вершина сверла, угол фаски/зенковки), "thread": резьба вида "M10×1,5" для метчика/резьбофрезы,
+ "coat": покрытие (AlTiN, TiAlN, TiN, DLC, ZrN, без), "grade": сплав или марка пластины,
+ "iso": массив групп материалов из ["P","M","K","N","S","H"], если видно по маркировке, цветовому коду ISO или назначению,
+ "vc": рекомендуемая Vc м/мин, "fz": подача мм/зуб или мм/об, "ap": мм, "ae": мм — только если напечатаны,
+ "qty": количество в упаковке, "price": цена в рублях, если видна,
+ "note": одна строка — что прочитано с фото и в чём не уверен}
+Типичные обозначения: "D10*25*75*4F" = Ø10, режущая 25, общая 75, 4 зуба; "4F"/"4T" = 4 зуба; "R5" у сферической = радиус 5, Ø10; "APMT1135" — пластина, ap до 10; "SEKT1204" — торцевая 45°.
+Для неизвестного или нечитаемого поля ставь null. Ничего не выдумывай: лучше null, чем догадка. Числа — числами, в миллиметрах.`;
+
+async function recognize(){
+  if(!SAMPLE){ $('fRecMsg').textContent='Распознавание недоступно в этом просмотре — заполните поля вручную.'; return; }
+  const blobs=[...fNewBlobs.map(b=>b.blob)];
+  for(const id of fPhotos){ if(blobs.length>=4) break; try{ const r=await fetch(imgUrl(id)); if(r.ok) blobs.push(await r.blob()); }catch(e){} }
+  if(!blobs.length){ $('fRecMsg').textContent='Сначала добавьте фото.'; return; }
+  $('fRecog').disabled=true; $('fRecMsg').textContent='Распознаю маркировку… обычно 10–40 секунд.';
+  try{
+    const d = await SAMPLE.json(REC_PROMPT, {images: blobs.slice(0,4)});
+    let n=0;
+    const put=(k,v)=>{ if(v==null||v==='') return; const el=$('f_'+k); if(!el) return; el.value=v; el.classList.add('filled'); n++; };
+    if(d && typeof d==='object'){
+      ['name','maker','article','coat','grade','thread','note'].forEach(k=>put(k, d[k]));
+      ['D','z','Lc','L','shank','re','angle','vc','fz','ap','ae','qty','price'].forEach(k=>{ const v=parseFloat(String(d[k]??'').replace(',','.')); if(isFinite(v)) put(k,v); });
+      if(TYPE_NAME[d.type]) put('type', d.type);
+      if(['prem','mid','cn'].includes(d.cls)) put('cls', d.cls);
+      if(Array.isArray(d.iso)) document.querySelectorAll('#f_iso input').forEach(i=>{ if(d.iso.includes(i.value)){ i.checked=true; n++; } });
+    }
+    $('fRecMsg').textContent = n ? `Заполнено полей: ${n} (подсвечены). Проверьте и сохраните.` : 'Маркировку прочитать не удалось — снимите ближе и при хорошем свете.';
+  }catch(e){
+    const msg={not_granted:'Распознавание не разрешено — заполните вручную.',rate_limited:'Слишком много запросов, попробуйте через минуту.',images_unavailable:'Отправка фото недоступна в этом просмотре.',cancelled:'Остановлено.'}[e&&e.code];
+    $('fRecMsg').textContent = msg || 'Не удалось распознать — попробуйте ещё раз или заполните вручную.';
+  }
+  $('fRecog').disabled=false;
+}
+$('fRecog').addEventListener('click',recognize);
+document.querySelectorAll('#invForm input, #invForm select, #invForm textarea').forEach(el=>el.addEventListener('input',()=>el.classList.remove('filled')));
+
+$('fSave').addEventListener('click',async()=>{
+  if(!INV){ $('fMsg').textContent='База недоступна в этом просмотре.'; return; }
+  if(fNewBlobs.length && ASSETS){ for(const it of fNewBlobs.slice()){ try{ const r=await ASSETS.upload(it.blob,{contentType:'image/jpeg'}); fPhotos.push(r.id); fNewBlobs.splice(fNewBlobs.indexOf(it),1); }catch(e){} } }
+  const d=fCollect(); d.updatedAt=Date.now();
+  $('fSave').disabled=true;
+  try{
+    if(invEdit){ await INV.collection('inv').doc(invEdit._id).set({...d, createdAt:invEdit.createdAt||Date.now()}); }
+    else { d.createdAt=Date.now(); await INV.collection('inv').add(d); }
+    $('invForm').hidden=true; invEdit=null; $('invStatus').textContent='Сохранено.';
+  }catch(e){ $('fMsg').textContent = e&&e.code==='quota_exceeded' ? 'База заполнена — удалите списанное.' : 'Не удалось сохранить: нет прав на запись или база недоступна.'; }
+  $('fSave').disabled=false;
+});
+$('fDel').addEventListener('click',async e=>{
+  if(!invEdit) return;
+  if(e.target.dataset.sure!=='1'){ e.target.dataset.sure='1'; e.target.textContent='Точно удалить?'; setTimeout(()=>{ e.target.dataset.sure=''; e.target.textContent='Удалить'; },4000); return; }
+  try{ await INV.collection('inv').doc(invEdit._id).delete(); if(ASSETS) for(const id of invEdit.photos||[]){ try{ await ASSETS.delete(id); }catch(err){} } $('invForm').hidden=true; invEdit=null; }
+  catch(err){ $('fMsg').textContent='Не удалось удалить.'; }
+});
+
+// список карточек
+function invRender(){
+  const q=$('invQ').value.trim().toLowerCase(), t=$('invType').value, iso=$('invIso').value, st=$('invState').value;
+  const rows=invRows.filter(r=>{
+    if(t && r.type!==t) return false;
+    if(iso && !(r.iso||[]).includes(iso)) return false;
+    if(st==='low'){ if(!(r.min>0 && (r.qty??0)<=r.min) || r.state==='off') return false; }
+    else if(st){ if(r.state!==st) return false; } else if(r.state==='off') return false;
+    if(q && ![r.name,r.maker,r.article,r.place,r.note,r.coat,r.grade,r.machine].join(' ').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  $('invEmpty').hidden = invRows.length>0 || !INV;
+  $('invGrid').innerHTML = rows.map(r=>{
+    const low = r.min>0 && (r.qty??0)<=r.min;
+    const chips=[r.D?('Ø'+String(r.D).replace('.',',')):'', r.z?(r.z+' z'):'', r.thread||'', r.coat||'', r.grade||'', (r.iso||[]).join(' ')].filter(Boolean).map(c=>`<span class="chip">${esc(c)}</span>`).join('');
+    const mfr=[r.vc?('Vc '+r.vc):'', r.fz?('fz '+String(r.fz).replace('.',',')):'', r.ap?('ap '+String(r.ap).replace('.',',')):'', r.ae?('ae '+String(r.ae).replace('.',',')):''].filter(Boolean).join(' · ');
+    return `<div class="icard" data-id="${esc(r._id)}">
+      <div class="ithumb">${r.photos&&r.photos.length?`<img src="${imgUrl(r.photos[0])}" alt="" loading="lazy">`:`<span>${esc((TYPE_NAME[r.type]||'').split(' ')[0])}</span>`}</div>
+      <div class="ibody">
+        <div class="iname">${esc(r.name)}</div>
+        <div class="hint" style="margin:0">${esc([r.maker,r.article].filter(Boolean).join(' · ')||TYPE_NAME[r.type]||'')}</div>
+        <div class="chips">${chips}</div>
+        <div class="irow">
+          <span class="pill st-${esc(r.state||'new')}">${STATE_NAME[r.state]||'Новый'}</span>
+          <span class="qty ${low?'low':''}"><button type="button" class="qb" data-d="-1" aria-label="Минус">−</button><b>${r.qty??0}</b> шт.<button type="button" class="qb" data-d="1" aria-label="Плюс">+</button></span>
+        </div>
+        <div class="hint" style="margin:0">${esc(r.place||'')}${r.place&&mfr?' · ':''}${esc(mfr)}</div>
+      </div></div>`;
+  }).join('');
+}
+$('invGrid').addEventListener('click',async e=>{
+  const card=e.target.closest('.icard'); if(!card) return; const r=invRows.find(x=>x._id===card.dataset.id); if(!r) return;
+  const qb=e.target.closest('.qb');
+  if(qb){ const nq=Math.max(0,(r.qty??0)+(+qb.dataset.d)); try{ await INV.collection('inv').doc(r._id).update({qty:nq, updatedAt:Date.now()}); }catch(err){ $('invStatus').textContent='Не удалось изменить количество.'; } return; }
+  fOpen(r);
+});
+['invQ','invType','invIso','invState'].forEach(id=>{ $(id).addEventListener('input',invRender); $(id).addEventListener('change',invRender); });
+
+
+(async()=>{
+  try{
+    INV = window.claude && window.claude.use ? await window.claude.use('db') : null;
+    ASSETS = window.claude && window.claude.use ? await window.claude.use('assets') : null;
+    SAMPLE = window.claude && window.claude.use ? await window.claude.use('sample') : null;
+    if(SAMPLE){ try{ const l=await SAMPLE.limits(); if(!l || !l.images) SAMPLE=null; }catch(e){} }
+    if(!SAMPLE){ $('fRecog').hidden=true; $('invPhotoLbl').textContent='Добавить с фото'; }
+    if(!ASSETS){ document.querySelector('label[for="fPhotoIn"]').hidden = !SAMPLE; }
+    if(!INV){ $('invStatus').textContent='Склад недоступен в этом просмотре — откройте калькулятор в Claude, войдя в аккаунт.'; $('invAdd').hidden=true; $('invPhotoLbl').hidden=true; return; }
+    let timer=setTimeout(()=>{ $('invStatus').textContent='База пока не отвечает — данные могут быть неактуальны.'; },10000);
+    INV.collection('inv').orderBy('updatedAt','desc').limit(1000).onSnapshot(snap=>{
+      invRows=snap.docs.map(d=>({...d.data(), _id:d.id}));
+      if(!snap.metadata.fromCache) clearTimeout(timer);
+      const low=invRows.filter(r=>r.state!=='off' && r.min>0 && (r.qty??0)<=r.min).length;
+      $('invStatus').textContent = `${invRows.filter(r=>r.state!=='off').length} позиций на складе` + (low?` · мало на складе: ${low}`:'') + (SAMPLE?'':' · распознавание фото недоступно в этом просмотре');
+      invRender();
+    }, err=>{ clearTimeout(timer); $('invStatus').textContent='Склад недоступен: '+(err&&err.code||'ошибка')+'.'; });
+  }catch(e){ $('invStatus').textContent='Склад недоступен в этом просмотре.'; }
+})();
+invRender();
+</script>
