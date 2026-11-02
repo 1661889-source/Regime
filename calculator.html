@@ -2130,6 +2130,8 @@ $('hsmQ').addEventListener('click',()=>{ const t=$('hsmTip'), open=t.hidden; t.h
   const mo=new MutationObserver(upd);
   Object.values(S_ID).forEach(([v])=>{ const el=$(v); if(el) mo.observe(el,{childList:true,characterData:true,subtree:true}); });
   new MutationObserver(upd).observe($('mode'),{attributes:true,subtree:true,attributeFilter:['aria-pressed']});
+  // смена «Рабочих S» / «Макс. S» снимает ручные обороты — иначе новое значение не видно
+  ['nWork','nMax'].forEach(id=>$(id).addEventListener('input',()=>{ ['sMan','dSMan','kSMan','tSMan','qSMan','cSMan'].forEach(m=>{ const el=$(m); if(el && el.value){ el.value=''; el.dispatchEvent(new Event('input')); } }); }));
   ['input','change','keyup'].forEach(ev=>['nWork','nMax'].forEach(id=>$(id).addEventListener(ev,()=>{ try{ const b=document.querySelector('#mode button[aria-pressed="true"]'); setMode(b?b.dataset.v:'mill'); }catch(e){} upd(); })));
   document.addEventListener('input',e=>{ if(/SMan$|^sMan$/.test(e.target.id)) setTimeout(upd,0); });
   upd();
