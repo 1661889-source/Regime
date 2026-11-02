@@ -228,8 +228,9 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
     <div class="row toprow">
       <div><label class="label" for="mat">Материал</label><select id="mat"></select></div>
       <div><label class="label" for="nMax">Макс. S, об/мин</label><input id="nMax" type="number" value="12000" step="500" min="500"></div>
-      <div><label class="label" for="nWork">Рабочие S, об/мин</label><input id="nWork" type="number" value="12000" step="500" min="500"></div>
+      <div><label class="label" for="nWork">Рабочие S, об/мин</label><input id="nWork" type="number" value="12000" step="500" min="500" inputmode="numeric"></div>
     </div>
+    <div class="hint" id="nInfo" aria-live="polite"></div>
     <details class="legend">
       <summary>Что значат обозначения</summary>
       <div class="tbl-wrap" style="margin-top:10px">
@@ -2112,4 +2113,25 @@ Object.entries(EXP_INPUT).forEach(([id,txt])=>{
 </script>
 <script>
 $('hsmQ').addEventListener('click',()=>{ const t=$('hsmTip'), open=t.hidden; t.hidden=!open; $('hsmQ').setAttribute('aria-expanded', String(open)); });
+</script>
+<script>
+// подсказка под «Рабочими S»: что сейчас ограничивает обороты
+(function(){
+  const S_ID={mill:['oN','sMan'],drill:['dN','dSMan'],tap:['kN','kSMan'],thread:['tN','tSMan'],ream:['qN','qSMan'],chamfer:['cN','cSMan'],ball:['bN',null]};
+  function upd(){
+    const b=document.querySelector('#mode button[aria-pressed="true"]'), m=b?b.dataset.v:'mill', ids=S_ID[m];
+    const nW=Math.min(num('nWork')||num('nMax')||12000, num('nMax')||12000);
+    if(!ids){ $('nInfo').textContent=`Обороты считаются не выше ${nf(nW)} об/мин.`; return; }
+    const S=pn(ids[0]), man=ids[1]&&num(ids[1])>0;
+    $('nInfo').textContent = man ? `Сейчас ${nf(S)} — заданы вручную в плитке «Обороты S». Нажмите «авто», чтобы считать до ${nf(nW)}.`
+      : S>=nW-50 ? `Сейчас ${nf(S)} — упор в «Рабочие S».`
+      : `Сейчас ${nf(S)} — ниже ${nf(nW)}: обороты задаёт скорость резания материала и диаметр инструмента.`;
+  }
+  const mo=new MutationObserver(upd);
+  Object.values(S_ID).forEach(([v])=>{ const el=$(v); if(el) mo.observe(el,{childList:true,characterData:true,subtree:true}); });
+  new MutationObserver(upd).observe($('mode'),{attributes:true,subtree:true,attributeFilter:['aria-pressed']});
+  ['input','change','keyup'].forEach(ev=>['nWork','nMax'].forEach(id=>$(id).addEventListener(ev,()=>{ try{ const b=document.querySelector('#mode button[aria-pressed="true"]'); setMode(b?b.dataset.v:'mill'); }catch(e){} upd(); })));
+  document.addEventListener('input',e=>{ if(/SMan$|^sMan$/.test(e.target.id)) setTimeout(upd,0); });
+  upd();
+})();
 </script>
