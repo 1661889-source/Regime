@@ -2207,5 +2207,33 @@ $('hsmQ').addEventListener('click',()=>{ const t=$('hsmTip'), open=t.hidden; t.h
 // блоки «Ручная настройка» скрыты: всё правится прямо в результате (поля остаются для расчёта)
 document.querySelectorAll('details.fold > summary, .card > h2').forEach(x=>{ if(x.textContent.trim()==='Ручная настройка'){ const c=x.closest('details, .card'); if(c) c.hidden=true; } });
 </script>
+<script>
+// вылет можно задавать в ×D или в мм (переключатель у поля)
+(function(){
+  function lenToggle(id, diaId){
+    const real=$(id), lab=document.querySelector('label[for="'+id+'"]'); if(!real||!lab) return;
+    const vis=document.createElement('input'); vis.type='number'; vis.id=id+'V'; vis.min='0'; vis.inputMode='decimal';
+    real.hidden=true; real.after(vis);
+    const flab=document.createElement('div'); flab.className='flab';
+    lab.before(flab); flab.appendChild(lab); lab.style.margin='0'; lab.setAttribute('for', vis.id);
+    lab.textContent='Вылет';
+    const seg=document.createElement('div'); seg.className='seg mini'; seg.id=id+'U';
+    seg.innerHTML='<button type="button" data-v="xd">×D</button><button type="button" data-v="mm">мм</button>';
+    flab.appendChild(seg);
+    let mode='xd'; try{ mode=localStorage.getItem('lenmode_'+id)||'xd'; }catch(e){}
+    const D=()=>num(diaId)||1;
+    const paint=()=>{ seg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===mode))); vis.step = mode==='mm' ? '1' : '0.5'; const ex=flab.nextElementSibling; if(ex && ex.classList.contains('exp')) ex.textContent = mode==='mm' ? 'от торца патрона до кончика, мм' : 'длина от патрона до кончика / диаметр'; };
+    const show=()=>{ const ld=num(id); vis.value = mode==='mm' ? Math.round(ld*D()) : +ld.toFixed(2); };
+    const push=()=>{ const v=parseFloat(String(vis.value).replace(',','.')); if(!(v>0)) return; real.value = mode==='mm' ? +(v/D()).toFixed(3) : v; real.dispatchEvent(new Event('input')); real.dispatchEvent(new Event('change')); };
+    vis.addEventListener('input', push);
+    seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ mode=b.dataset.v; try{ localStorage.setItem('lenmode_'+id, mode); }catch(e){} paint(); show(); }));
+    // при смене диаметра: в режиме «мм» вылет в мм сохраняется, ×D пересчитывается
+    $(diaId).addEventListener('input',()=>{ if(mode==='mm') push(); else show(); });
+    paint(); show();
+  }
+  lenToggle('ld','dia');
+  lenToggle('qLD','qD');
+})();
+</script>
 
 </body></html>
