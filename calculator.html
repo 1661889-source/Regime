@@ -203,7 +203,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
 
 <div class="wrap">
   <h1>Режимы резания</h1>
-  <p class="sub">Режимы, шероховатость, стойкость и своя база инструмента</p>
+  <p class="sub">Фрезерование, сверление, резьба, фаски, шероховатость и стойкость инструмента</p>
 
   <div class="card top">
     <div><span class="label">Операция</span>
@@ -216,7 +216,6 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
         <button type="button" data-v="chamfer" aria-pressed="false">Фаски</button>
         <button type="button" data-v="ball" aria-pressed="false">3D · Ra</button>
         <button type="button" data-v="life" aria-pressed="false">Стойкость · ₽</button>
-        <button type="button" data-v="db" aria-pressed="false">Мои режимы</button>
       </div></div>
     <div class="row toprow">
       <div><label class="label" for="mat">Материал</label><select id="mat"></select></div>
@@ -943,28 +942,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
   </div>
   </section>
 
-  <section id="mDb" hidden>
-  <p class="p" style="margin:0 0 12px">Склад инструмента с фото и распознаванием — <a href="https://claude.ai/artifact/B3qqSggxo6mPiRDCDwN2FX" target="_blank" rel="noopener" style="color:var(--accent)">отдельной страницей</a>.</p>
-  <div class="card" id="dbModesCard">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px">
-      <h2 style="margin:0">Сохранённые режимы</h2>
-      <span class="hint" id="dbStatus">Загрузка…</span>
-    </div>
-    <div class="row3" style="margin-bottom:12px">
-      <div><label class="label" for="dbQ">Поиск</label><input id="dbQ" placeholder="название, марка, примечание"></div>
-      <div><label class="label" for="dbKind">Операция</label>
-        <select id="dbKind"><option value="">Все</option><option value="mill">Фрезерование</option><option value="drill">Сверление</option><option value="tap">Метчики</option><option value="thread">Резьбофрезы</option><option value="ream">Развёртка / расточка</option><option value="chamfer">Фаски</option><option value="ball">Шаровые</option></select></div>
-      <div><label class="label" for="dbMat">Материал</label><select id="dbMat"><option value="">Все</option></select></div>
-    </div>
-    <div class="tbl-wrap">
-    <table class="tbl" id="dbTable">
-      <thead><tr><th>Название</th><th>Операция</th><th>Материал</th><th>Инструмент</th><th>S</th><th>F</th><th>Режим</th><th>Примечание</th><th></th></tr></thead>
-      <tbody></tbody>
-    </table>
-    </div>
-    <p class="p" id="dbEmpty" hidden>Сохранённых режимов пока нет. Подберите режим на любой вкладке и нажмите «В мою базу» под результатом — запись появится здесь и будет видна всем, у кого есть доступ к калькулятору.</p>
-  </div>
-  </section>
+
 
   <details class="card" style="margin-top:14px">
         <summary>Параметры станка</summary>
@@ -1937,8 +1915,8 @@ $('lReset').addEventListener('click',lDefaults);
 ['lBatch','lUse','lVc','lNameA','lNameB','lPriceA','lPriceB','lTA','lTB','lEdgA','lEdgB','lZA','lZB','lRgA','lRgB','lRgPA','lRgPB'].forEach(id=>$(id).addEventListener('input',lCalc));
 
 // ===== Вкладки =====
-const MODES = {mill:'mMill',drill:'mDrill',tap:'mTap',thread:'mThread',ream:'mReam',chamfer:'mChamfer',ball:'mBall',life:'mLife',db:'mDb'};
-const CALCS = {drill:()=>dCalc(), tap:kCalc, thread:()=>tCalc(), ream:qCalc, chamfer:()=>cCalc(), ball:bCalc, life:lCalc, mill:()=>calc(), db:()=>dbRender()};
+const MODES = {mill:'mMill',drill:'mDrill',tap:'mTap',thread:'mThread',ream:'mReam',chamfer:'mChamfer',ball:'mBall',life:'mLife'};
+const CALCS = {drill:()=>dCalc(), tap:kCalc, thread:()=>tCalc(), ream:qCalc, chamfer:()=>cCalc(), ball:bCalc, life:lCalc, mill:()=>calc()};
 setMode = function(v){
   if(!MODES[v]) v='mill';
   document.querySelectorAll('#mode button').forEach(x=>x.setAttribute('aria-pressed', x.dataset.v===v?'true':'false'));
@@ -1951,104 +1929,8 @@ function lSetT(){ const L=LIFE[$('lTool').value], T=L.T[mat().iso]; $('lTA').val
 sel.addEventListener('change',()=>{ kCalc(); qCalc(); bCalc(); lSetT(); });
 ['nMax','pS1','pS2','vfMax','eta'].forEach(id=>$(id).addEventListener('input',()=>{ kCalc(); qCalc(); bCalc(); }));
 
-// ===== Моя база инструмента (общая) =====
-const SAVE = {
-  mill:   {res:'#mMill .res', S:'oN', F:'oF', ids:['toolType','grade','@strat','clamp','dia','z','ld','ap','ae','sMan','@fzManU','fzMan'],
-           tool:()=>`${$('toolType').selectedOptions[0].text} · ${$('grade').selectedOptions[0].text}, Ø${$('dia').value} z${$('z').value}`,
-           sum:()=>`${({rough:'черн.',hsm:'HSM',finish:'чист.'})[strat]} · ap ${$('oAp').textContent} · ae ${$('oAe').textContent} · fz ${$('oFz').textContent}`},
-  drill:  {res:'#mDrill .res', S:'dN', F:'dF', ids:['dType','dGrade','dD','dL','dSMan','@dFManU','dFMan'],
-           tool:()=>`${$('dType').selectedOptions[0].text}, Ø${$('dD').value}`, sum:()=>`f ${$('dFr').textContent} · ${$('dCyc').textContent} · глуб. ${$('dL').value}`},
-  tap:    {res:'#mTap .res', S:'kN', F:'kF', ids:['kSize','@kHole','kD','kP','kL','kType','kGrade','kSMan'],
-           tool:()=>`${$('kType').selectedOptions[0].text}, M${$('kD').value}×${$('kP').value}`, sum:()=>`сверло ${$('kDrill').textContent} · ${segVal('kHole')==='blind'?'глухое':'сквозное'}`},
-  thread: {res:'#mThread .res', S:'tN', F:'tF', ids:['tSize','@tKind','tD','tP','tL','tType','tGrade','td','tz','tSMan','@tFzManU','tFzMan','tPassMan'],
-           tool:()=>`${$('tType').selectedOptions[0].text}, Ø${$('td').value} z${$('tz').value}`, sum:()=>`M${$('tD').value}×${$('tP').value} · fz ${$('tFz').textContent} · проходов ${$('tPass').textContent}`},
-  ream:   {res:'#mReam .res', S:'qN', F:'qF', ids:['@qOp','qD','qL','qGrade','qrType','@qThr','qbType','qAp','qRe','qRa','qLD','qSMan','@qFManU','qFMan'],
-           tool:()=> qOp==='ream' ? `Развёртка ${$('qrType').selectedOptions[0].text.toLowerCase()}, Ø${$('qD').value}` : `${$('qbType').selectedOptions[0].text}, Ø${$('qD').value}`,
-           sum:()=>`f ${$('qFr').textContent} · Ra ${$('qRaO').textContent}`},
-  chamfer:{res:'#mChamfer .res', S:'cN', F:'cF', ids:['@cOp','cTool','cGrade','cAng','cDmax','cz','cC','cTip','cT','cFor','cHole','cDk','cDwell','cSMan','@cFManU','cFMan'],
-           tool:()=>`${$('cTool').selectedOptions[0].text}, ${$('cAng').value}° Ø${$('cDmax').value}`, sum:()=>`Z ${$('cZ').textContent} · ${$('cFzK').textContent} ${$('cFz').textContent}`},
-  ball:   {res:'#bBallOut', S:'bN', F:'bF', ids:['@bOp','bD','bz','bGrade','bAp','bSlope','bH'],
-           tool:()=>`Шаровая Ø${$('bD').value} z${$('bz').value}`, sum:()=>`ap ${$('bAp').value} · шаг ${$('bAe').textContent} · fz ${$('bFz').textContent}`},
-};
-const KIND_NAME = {mill:'Фрезерование',drill:'Сверление',tap:'Метчики',thread:'Резьбофрезы',ream:'Развёртка / расточка',chamfer:'Фаски',ball:'Шаровые'};
-let DB=null, dbRows=[], dbCanWrite=true;
-
-function addSaveUI(kind){
-  const cfg=SAVE[kind], card=document.querySelector(cfg.res); if(!card) return;
-  const box=document.createElement('div'); box.className='saveBox';
-  box.innerHTML=`<button type="button" class="btn sv-open">В мою базу</button>
-    <div class="sv-form" hidden><input class="sv-name" placeholder="Название, напр. «Фреза Ø10 YG-1, Д16 карман»"><input class="sv-note" placeholder="Примечание (необязательно)">
-    <div style="display:flex; gap:8px"><button type="button" class="btn sv-save">Сохранить</button><button type="button" class="btn sv-cancel">Отмена</button></div></div>
-    <span class="hint sv-msg"></span>`;
-  card.appendChild(box);
-  const q=s=>box.querySelector(s);
-  q('.sv-open').addEventListener('click',()=>{ q('.sv-form').hidden=false; q('.sv-open').hidden=true; q('.sv-name').value=`${mat().name} · ${cfg.tool()}`; q('.sv-name').focus(); q('.sv-msg').textContent=''; });
-  q('.sv-cancel').addEventListener('click',()=>{ q('.sv-form').hidden=true; q('.sv-open').hidden=false; });
-  q('.sv-save').addEventListener('click',async()=>{
-    if(!DB){ q('.sv-msg').textContent='База недоступна в этом просмотре.'; return; }
-    const vals=cfg.ids.map(id=> id[0]==='@' ? [id, segVal(id.slice(1)) || (id==='@strat'?strat:'')] : [id, $(id).type==='checkbox'?String($(id).checked):$(id).value]);
-    const rec={name:q('.sv-name').value.trim()||cfg.tool(), note:q('.sv-note').value.trim(), kind, mat:sel.value, matName:mat().name,
-      tool:cfg.tool(), S:Math.round(pn(cfg.S)), F:Math.round(pn(cfg.F)), sum:cfg.sum(), vals, createdAt:Date.now()};
-    q('.sv-save').disabled=true;
-    try{ await DB.collection('tools').add(rec); q('.sv-msg').textContent='Сохранено — смотрите вкладку «Мои режимы».'; q('.sv-form').hidden=true; q('.sv-open').hidden=false; q('.sv-note').value=''; }
-    catch(e){ q('.sv-msg').textContent = e && e.code==='quota_exceeded' ? 'База заполнена — удалите старые записи.' : 'Не удалось сохранить: нет прав на запись или база недоступна.'; }
-    q('.sv-save').disabled=false;
-  });
-}
-Object.keys(SAVE).forEach(addSaveUI);
-
-function applyRec(r){
-  setMode(r.kind);
-  if(sel.value!==r.mat && M.find(x=>x.id===r.mat)){ sel.value=r.mat; sel.dispatchEvent(new Event('change')); }
-  for(const [id,v] of (r.vals||[])){
-    if(id[0]==='@'){ const sid=id.slice(1); if(sid==='strat'){ const b=document.querySelector('#strat button[data-v="'+v+'"]'); if(b && !b.disabled) b.click(); } else segSet(sid,v); continue; }
-    const el=$(id); if(!el) continue;
-    if(el.type==='checkbox') el.checked = v==='true'; else el.value=v;
-    el.dispatchEvent(new Event('change')); el.dispatchEvent(new Event('input'));
-  }
-  // ручные значения ставим повторно — каскад событий мог их перезаписать
-  for(const [id,v] of (r.vals||[])){ if(id[0]!=='@' && /Man$/.test(id)){ $(id).value=v; $(id).dispatchEvent(new Event('input')); } }
-  window.scrollTo({top:0, behavior:'smooth'});
-}
-function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function dbRender(){
-  const q=$('dbQ').value.trim().toLowerCase(), k=$('dbKind').value, mt=$('dbMat').value;
-  const rows=dbRows.filter(r=>(!k||r.kind===k)&&(!mt||r.mat===mt)&&(!q||[r.name,r.note,r.tool,r.matName,r.sum].join(' ').toLowerCase().includes(q)));
-  $('dbEmpty').hidden = dbRows.length>0;
-  document.querySelector('#dbTable tbody').innerHTML = rows.map(r=>`<tr data-id="${esc(r._id)}">
-    <td>${esc(r.name)}</td><td style="font-weight:400">${esc(KIND_NAME[r.kind]||r.kind)}</td><td>${esc(r.matName)}</td><td>${esc(r.tool)}${r.toolRef&&window.invName&&window.invName(r.toolRef)?'<br><span class="hint">↳ '+esc(window.invName(r.toolRef))+'</span>':''}</td>
-    <td>${nf(r.S||0)}</td><td>${nf(r.F||0)}</td><td>${esc(r.sum)}</td><td>${esc(r.note)}</td>
-    <td style="white-space:nowrap"><button type="button" class="btn db-open">Открыть</button> ${dbCanWrite?'<button type="button" class="btn db-del">Удалить</button>':''}</td></tr>`).join('')
-    || (dbRows.length?'<tr><td colspan="9" style="font-weight:400;color:var(--fg-dim)">Ничего не найдено по фильтру.</td></tr>':'');
-}
-$('dbMat').innerHTML='<option value="">Все</option>'+M.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('');
-['dbQ','dbKind','dbMat'].forEach(id=>{ $(id).addEventListener('input',dbRender); $(id).addEventListener('change',dbRender); });
-document.querySelector('#dbTable tbody').addEventListener('click',async e=>{
-  const tr=e.target.closest('tr[data-id]'); if(!tr) return; const r=dbRows.find(x=>x._id===tr.dataset.id); if(!r) return;
-  if(e.target.classList.contains('db-open')) applyRec(r);
-  if(e.target.classList.contains('db-del')){
-    if(e.target.dataset.sure!=='1'){ e.target.dataset.sure='1'; e.target.textContent='Точно удалить?'; setTimeout(()=>{ if(e.target.isConnected){ e.target.dataset.sure=''; e.target.textContent='Удалить'; } },4000); return; }
-    try{ await DB.collection('tools').doc(r._id).delete(); }catch(err){ $('dbStatus').textContent='Не удалось удалить: нет прав или база недоступна.'; }
-  }
-});
-(async()=>{
-  try{
-    DB = window.claude && window.claude.use ? await window.claude.use('db') : null;
-    if(!DB){ $('dbStatus').textContent='База недоступна в этом просмотре — откройте калькулятор в Claude, войдя в аккаунт.'; document.querySelectorAll('.saveBox').forEach(b=>b.hidden=true); $('dbEmpty').hidden=true; return; }
-    const user = await window.claude.use('user');
-    if(user){ try{ const c=await user.can('data.write'); if(c===false){ dbCanWrite=false; document.querySelectorAll('.saveBox').forEach(b=>b.hidden=true); } }catch(e){} }
-    let timer=setTimeout(()=>{ $('dbStatus').textContent='База пока не отвечает — данные могут быть неактуальны.'; },10000);
-    DB.collection('tools').orderBy('createdAt','desc').limit(500).onSnapshot(snap=>{
-      dbRows=snap.docs.map(d=>({...d.data(), _id:d.id}));
-      if(!snap.metadata.fromCache){ clearTimeout(timer); }
-      $('dbStatus').textContent = `${dbRows.length} ${dbRows.length%10===1&&dbRows.length%100!==11?'запись':(dbRows.length%10>=2&&dbRows.length%10<=4&&(dbRows.length%100<10||dbRows.length%100>=20)?'записи':'записей')} · общая для всех, у кого есть доступ`+(dbCanWrite?'':' · только просмотр');
-      dbRender();
-    }, err=>{ clearTimeout(timer); $('dbStatus').textContent='База недоступна: '+(err&&err.code||'ошибка')+'.'; });
-  }catch(e){ $('dbStatus').textContent='База недоступна в этом просмотре.'; document.querySelectorAll('.saveBox').forEach(b=>b.hidden=true); }
-})();
-
 // старт
-kFill(); qCalc(); bCalc(); lDefaults(); dbRender();
+kFill(); qCalc(); bCalc(); lDefaults();
 try{ const md=localStorage.getItem('mode'); if(md && MODES[md]) setMode(md); }catch(e){}
 </script>
 <script>
