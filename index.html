@@ -230,7 +230,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
     <div class="row toprow">
       <div><label class="label" for="mat">Материал</label><select id="mat"></select></div>
       <div><label class="label" for="nMax">Макс. S, об/мин</label><input id="nMax" type="number" value="12000" step="500" min="500"></div>
-      <div><label class="label" for="nWork">Рабочие S, об/мин</label><input id="nWork" type="number" value="10000" step="500" min="500"></div>
+      <div><label class="label" for="nWork">Рабочие S, об/мин</label><input id="nWork" type="number" value="12000" step="500" min="500"></div>
     </div>
     <details class="legend">
       <summary>Что значат обозначения</summary>
@@ -1045,13 +1045,11 @@ try{ const s=localStorage.getItem('last_mat'); if(s && M.find(m=>m.id===s)) sel.
 function mat(){ return M.find(m=>m.id===sel.value); }
 function tool(){ return TOOLS[$('toolType').value]; }
 function num(id){ const v=parseFloat($(id).value); return isFinite(v)?v:0; }
-// рекомендуемый предел оборотов: рабочий предел, ниже для китайского инструмента и длинного вылета
+// рекомендуемый предел оборотов: «Рабочие S», заданные вверху (по умолчанию = максимум станка)
 let recWhy='';
 function nRec(cn, ld){
   const nMax=num('nMax')||12000; let w=Math.min(num('nWork')||nMax, nMax); const why=[];
   if(w<nMax) why.push('рабочий предел');
-  if(cn && w>0.75*nMax){ w=0.75*nMax; why.push('китайский инструмент — биение'); }
-  if(ld>6){ w*=0.65; why.push('вылет больше 6×D'); } else if(ld>4){ w*=0.8; why.push('вылет больше 4×D'); }
   recWhy=why.join(', ');
   return Math.round(w/100)*100;
 }
