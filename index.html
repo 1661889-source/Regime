@@ -1142,14 +1142,15 @@ function calc(){
     else sinK=Math.sin(t.kappa*Math.PI/180);
     kap = Math.min(1/sinK, 4);
     if(!t.face && aeR<0.5){ thin = Math.min(1/Math.sqrt(1-Math.pow(1-2*aeR,2)),2.5); }
-    const ra=ap/t.apMax; kAx = ra<=0.3?1.15 : ra<=0.6?1.05 : 1;
+    const ra=ap/t.apMax; kAx = Math.min(1.2, Math.max(1, Math.pow(Math.max(ra,0.1)/0.7, -0.15)));
     fz = hex*kap*thin*kAx;
   } else {
     const ds = Math.pow(Math.min(Math.max(D,1),32)/10, 0.8);
     // поправка на глубину: меньше ap — меньше нагрузка и прогиб, подачу можно поднять
     const ra=ap/D;
-    if(strat==='hsm') kAx = ra>3?0.85:1;
-    else kAx = ra<=0.25?1.25 : ra<=0.5?1.15 : ra<=1?1 : ra<=1.5?0.9 : 0.8;
+    // плавная поправка: каждые −50% глубины дают около +19% к подаче на зуб (ap=1×D — без поправки)
+    if(strat==='hsm') kAx = Math.min(1.15, Math.max(0.7, Math.pow(Math.max(ra,0.1)/2.5, ra>2.5?-0.5:-0.15)));
+    else kAx = Math.min(1.35, Math.max(0.8, Math.pow(Math.max(ra,0.1), -0.25)));
     if(strat==='finish'){ fz = m.ff*ds*kAx; }
     else {
       if(aeR<0.5){ thin = Math.min(1/Math.sqrt(1-Math.pow(1-2*aeR,2)),2.5); }
@@ -1205,7 +1206,7 @@ function calc(){
   if(t.idx && kap>1.05 && !(fzMan>0)) W.push(['info',`Угол в плане: подача поднята ×${nf(kap,2)} (fz = hex / sin κ).`]);
   if(t.idx && t.kappa===0 && ap>2.5) W.push(['',`На круглой пластине выгоднее ap ≤ 2,5 мм: подача растёт за счёт утонения стружки.`]);
   if(ldf<1 && !(fzMan>0)) W.push(['',`Вылет ${ld}×D: fz снижена до ${nf(ldf*100)}%. ap тоже уменьшите, иначе вибрация.${t.idx?' На длинном вылете лучше высокоподачная.':' Для длинных вылетов лучше трохоида с малым ae.'}`]);
-  if(kAx!==1 && !(fzMan>0)) W.push(['info',`Глубина ap ${t.idx?nf(ap,1)+' мм из '+nf(t.apMax,1):nf(ap/D,2)+'×D'}: подача на зуб ${kAx>1?'поднята':'снижена'} ×${nf(kAx,2)}${kAx>1?' — на малой глубине меньше нагрузка и прогиб фрезы':' — длинная кромка в работе, больше прогиб'}.`]);
+  if(Math.abs(kAx-1)>0.01 && !(fzMan>0)) W.push(['info',`Глубина ap ${t.idx?nf(ap,1)+' мм из '+nf(t.apMax,1):nf(ap/D,2)+'×D'}: подача на зуб ${kAx>1?'поднята':'снижена'} ×${nf(kAx,2)}${kAx>1?' — на малой глубине меньше нагрузка и прогиб фрезы':' — длинная кромка в работе, больше прогиб'}.`]);
   if(thin>1.05 && strat!=='finish' && !(fzMan>0)) W.push(['info',`ae ${nf(aeR*100)}% D — подача поднята на утонение стружки ×${nf(thin,2)}.`]);
   if(!t.idx && strat==='hsm' && ap>3*D) W.push(['',`ap больше 3×D — проверьте длину режущей части фрезы.`]);
   if(!t.idx && strat==='rough' && aeR>=0.99) W.push(['',`Полный паз: ap не больше 0,5×D (алюминий до 1×D), обороты лучше снизить до ~70–80%.${g[0].startsWith('cn')?' Для китайской фрезы — 50–70% оборотов и 40–60% подачи.':''}`]);
