@@ -251,7 +251,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
           <tr><td>rε</td><td>Радиус при вершине пластины, мм — от него и подачи зависит шероховатость</td></tr>
           <tr><td>Ra, Rz</td><td>Шероховатость, мкм. Ra ≈ Rz / 4</td></tr>
           <tr><td>kc</td><td>Удельная сила резания материала, Н/мм² — нужна для расчёта мощности</td></tr>
-          <tr><td>P</td><td>Мощность шпинделя — расчёт ведётся по 11 кВт (режим S2). Меняется в «Параметрах станка»</td></tr>
+          <tr><td>P</td><td>Мощность шпинделя — расчёт ведётся по 11 кВт (режим S2). </td></tr>
           <tr><td>HSM</td><td>Трохоида / высокоскоростная обработка: малая ширина ae, большая глубина ap, высокая подача</td></tr>
           <tr><td>ISO P M K N S H</td><td>Группы материалов: P сталь, M нержавейка, K чугун, N алюминий и медь, S титан и жаропрочные, H закалённые</td></tr>
         </tbody>
@@ -365,23 +365,6 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
     <p class="p">На стенку припуск больше, чем на дно: стенку отжимает радиальной силой. Высокая тонкая стенка или вылет больше 4×D — под чистовую оставить 0,3–0,4 мм, иначе размер уйдёт. На чугуне и латуни получистовую обычно пропускают. После трохоиды припуск на стенке ровный — можно сразу чистовую.</p>
   </div>
 
-  <div class="card" style="margin-top:14px">
-    <h2>Корпусные фрезы</h2>
-    <div class="tbl-wrap">
-    <table class="tbl">
-      <thead><tr><th>Тип</th><th>κ</th><th>ap max</th><th>Ø корпуса</th><th>ae</th><th>fz прогр., сталь</th><th>Примечание</th></tr></thead>
-      <tbody>
-        <tr><td>APMT 1135</td><td>90°</td><td>10 мм</td><td>16–40</td><td>30–70%</td><td>0,08–0,15</td><td>Уступы, карманы, боковое</td></tr>
-        <tr><td>APMT 1604</td><td>90°</td><td>15 мм</td><td>25–80</td><td>30–70%</td><td>0,10–0,20</td><td>Вместе с высокоподачной — самый большой съём на этом шпинделе</td></tr>
-        <tr><td>SEKT 1204</td><td>45°</td><td>6 мм</td><td>50–125</td><td>60–75%</td><td>0,14–0,28</td><td>Торцовка. По стали разумный максимум Ø63</td></tr>
-        <tr><td>Высокоподачная</td><td>10–17°</td><td>0,8–1,5 мм</td><td>16–63</td><td>50–75%</td><td>0,5–1,2</td><td>Малая глубина, огромная подача. Хороша на длинном вылете</td></tr>
-        <tr><td>RPMT 10T3</td><td>перем.</td><td>5 мм (лучше ≤2,5)</td><td>25–63</td><td>50–75%</td><td>0,15–0,30</td><td>Чем меньше ap, тем выше подача. Прочная кромка</td></tr>
-      </tbody>
-    </table>
-    </div>
-    <p class="p">Подача пересчитывается по углу в плане: fz = hex / sin κ. Для 45° это ×1,41, для высокоподачной ×3,9, для круглой зависит от ap. Пластины APMT для стали по алюминию дают нарост — нужны полированные APKT / SEKT …AFN. Китайские пластины no-name: Vc ×0,75, fz ×0,85, на нержавейке Vc ×0,7. Разброс по партиям большой — новую партию начинать с расчётного и поднимать по факту.</p>
-    <p class="p"><b>Китайский монолит.</b> Главная проблема — биение 0,02–0,03 мм и разброс партий. Лучше всего работает на трохоиде с малым ae, хуже всего — в полном пазу. Универсальные 4-зубые AlTiN на алюминии забивают канавки: для Al брать полированные 1–3-зубые. Стойкость ниже в 1,5–3 раза — на серии снижать Vc, а не fz.</p>
-  </div>
 
   <div class="card" id="matCard" style="margin-top:14px">
     <h2>Табличные значения · монолит</h2>
@@ -945,8 +928,8 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
 
 
 
-  <details class="card" style="margin-top:14px">
-        <summary>Параметры станка</summary>
+  <div hidden>
+        
         <div class="row3" style="margin-top:12px">
           
           <div hidden><label class="label" for="pS1">P S1, кВт</label><input id="pS1" type="number" value="7.5" step="0.5"></div>
@@ -956,7 +939,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
           <div><label class="label" for="vfMax">Vf max, мм/мин</label><input id="vfMax" type="number" value="10000" step="500"></div>
           <div><label class="label" for="eta">КПД привода</label><input id="eta" type="number" value="0.8" step="0.05" min="0.5" max="1"></div>
         </div>
-      </details>
+      </div>
 
 </div>
 
@@ -2010,7 +1993,7 @@ barUpd();
 </script>
 <script>
 // параметры станка запоминаются в этом браузере
-['nMax','nWork','pS1','pS2','vfMax','eta'].forEach(id=>{
+['nMax','nWork'].forEach(id=>{
   const el=$(id);
   try{ const v=localStorage.getItem('m_'+id); if(v){ el.value=v; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); } }catch(e){}
   el.addEventListener('input',()=>{ try{ localStorage.setItem('m_'+id, el.value); }catch(e){} });
