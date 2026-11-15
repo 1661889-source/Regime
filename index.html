@@ -337,6 +337,14 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
             <div><label class="label" for="mcOverride">Коэффициент mc</label><input id="mcOverride" type="number" min="0.01" max="1" step="0.01" placeholder="из таблицы"></div>
           </div>
           <div class="hint">Каталоги: <a href="https://www.zccct.com/en/SampleDownload/index.aspx" target="_blank" rel="noopener">ZCC-CT</a> · <a href="https://www.sandvik.coromant.com/en-gb/knowledge/machining-formulas-definitions/milling-formulas-definitions" target="_blank" rel="noopener">Sandvik</a> · <a href="https://yg1.kr" target="_blank" rel="noopener">YG-1</a>. Без артикула числовые значения не подставляются.</div>
+          <div class="row" style="margin-top:9px">
+            <div><label class="label" for="toolPresetName">Название набора инструмента</label><input id="toolPresetName" type="text" placeholder="Ø10 Z4, серия, материал"></div>
+            <div><label class="label" for="toolPresets">Сохранённые наборы</label><select id="toolPresets"><option value="">— выбрать —</option></select></div>
+            <div><button id="toolSave" class="btn" type="button">Сохранить набор</button></div>
+            <div><button id="toolLoad" class="btn" type="button">Загрузить</button></div>
+            <div><button id="toolDelete" class="btn" type="button">Удалить</button></div>
+          </div>
+          <div class="hint" id="toolPresetInfo">Наборы хранятся только в данном браузере, без облачной синхронизации.</div>
         </details>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap">
           <span class="hint">Пусто — считается автоматически. Заданное значение заменяет расчётное.</span>
@@ -2458,6 +2466,54 @@ document.querySelectorAll('details.fold > summary, .card > h2').forEach(x=>{ if(
       input.addEventListener('blur',()=>commit(true));
     });
   });
+})();
+</script>
+
+<script>
+// Локальная библиотека инструментов; не смешивает параметры разных материалов.
+(function(){
+  const KEY='regime_tool_presets_v1', fields=['dia','z','ld','ap','ae','sMan','fzMan','catVc','catFz','toolMaker','toolSeries','kcOverride','mcOverride','cutLen'];
+  const read=()=>{try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(v)?v:[];}catch(e){return [];}};
+  function draw(selected=''){
+    const rows=read(), sel=$('toolPresets');sel.replaceChildren(new Option('— выбрать —',''));
+    rows.forEach((row,i)=>sel.add(new Option(row.name,String(i))));
+    if(selected!=='') sel.value=String(selected);
+  }
+  function current(){
+    const data={mat:sel.value,toolType:$('toolType').value,grade:$('grade').value,strat,clamp:$('clamp').value,feedMode:feedMode('fzMan')};
+    fields.forEach(id=>data[id]=$(id).value);
+    return data;
+  }
+  $('toolSave').addEventListener('click',()=>{
+    const name=$('toolPresetName').value.trim();
+    if(!name){$('toolPresetInfo').textContent='Укажите название набора.';return;}
+    const rows=read(), at=rows.findIndex(p=>p.name===name);
+    const row={name,data:current()};
+    if(at<0) rows.push(row); else rows[at]=row;
+    try{localStorage.setItem(KEY,JSON.stringify(rows));$('toolPresetInfo').textContent='Набор сохранён в этом браузере.';draw(at<0?rows.length-1:at);}catch(e){$('toolPresetInfo').textContent='Не удалось сохранить: хранилище браузера недоступно.';}
+  });
+  $('toolLoad').addEventListener('click',()=>{
+    const idx=$('toolPresets').value, rows=read();if(idx===''||!rows[+idx])return;
+    const d=rows[+idx].data;
+    if(M.some(m=>m.id===d.mat)){sel.value=d.mat;onMat();}
+    if(TOOLS[d.toolType]){$('toolType').value=d.toolType;onTool();}
+    if(['rough','hsm','finish'].includes(d.strat)){setStrat(d.strat);syncStratButtons();}
+    if([...$('grade').options].some(x=>x.value===d.grade))$('grade').value=d.grade;
+    if(d.clamp!==undefined)$('clamp').value=d.clamp;
+    fields.forEach(id=>{if(d[id]!==undefined)$(id).value=d[id];});
+    const mode=document.querySelector('#fzManU button[data-v="'+(d.feedMode==='F'?'F':'per')+'"]');
+    if(mode)document.querySelectorAll('#fzManU button').forEach(b=>b.setAttribute('aria-pressed',b===mode?'true':'false'));
+    manualApAe=true;
+    calc();dCalc();tCalc();kCalc();qCalc();cCalc();bCalc();
+    $('toolPresetName').value=rows[+idx].name;
+    $('toolPresetInfo').textContent='Загружен набор: '+rows[+idx].name;
+  });
+  $('toolDelete').addEventListener('click',()=>{
+    const idx=$('toolPresets').value;if(idx==='')return;
+    const rows=read();rows.splice(+idx,1);
+    try{localStorage.setItem(KEY,JSON.stringify(rows));draw();$('toolPresetInfo').textContent='Набор удалён.';}catch(e){$('toolPresetInfo').textContent='Не удалось удалить.';}
+  });
+  draw();
 })();
 </script>
 </body></html>
