@@ -324,6 +324,17 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
           <div><label class="label" for="sMan">Обороты S, об/мин</label><input id="sMan" type="number" step="100" min="0" placeholder="авто"></div>
           <div><div class="flab"><label class="label" for="fzMan" style="margin:0">Подача</label><div class="seg mini" id="fzManU"><button type="button" data-v="per" aria-pressed="true">fz, мм/зуб</button><button type="button" data-v="F" aria-pressed="false">F, мм/мин</button></div></div><input id="fzMan" type="number" step="0.005" min="0" placeholder="авто"></div>
         </div>
+        <details class="legend" style="margin-top:10px">
+          <summary>Каталог конкретной фрезы — собственные Vc/fz</summary>
+          <p class="hint">Введите значения из каталога для текущего диаметра и материала. При их смене ввод сбрасывается.</p>
+          <div class="row">
+            <div><label class="label" for="toolMaker">Производитель</label><input id="toolMaker" type="text" placeholder="например, ZCC-CT"></div>
+            <div><label class="label" for="toolSeries">Серия / артикул</label><input id="toolSeries" type="text" placeholder="точный артикул"></div>
+            <div><label class="label" for="catVc">Vc по каталогу, м/мин</label><input id="catVc" type="number" min="0" step="5" placeholder="авто"></div>
+            <div><label class="label" for="catFz">fz по каталогу, мм/зуб</label><input id="catFz" type="number" min="0" step="0.005" placeholder="авто"></div>
+          </div>
+          <div class="hint">Каталоги: <a href="https://www.zccct.com/en/SampleDownload/index.aspx" target="_blank" rel="noopener">ZCC-CT</a> · <a href="https://www.sandvik.coromant.com/en-gb/knowledge/machining-formulas-definitions/milling-formulas-definitions" target="_blank" rel="noopener">Sandvik</a> · <a href="https://yg1.kr" target="_blank" rel="noopener">YG-1</a>. Без артикула числовые значения не подставляются.</div>
+        </details>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap">
           <span class="hint">Пусто — считается автоматически. Заданное значение заменяет расчётное.</span>
           <button type="button" class="btn" id="resetMan">Сбросить в авто</button>
@@ -333,6 +344,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
     </div>
 
     <div class="card res">
+      <div class="hint" style="margin-bottom:10px">Для обратного расчёта Q/P менять <select id="solveVia" style="display:inline;width:auto"><option value="ap">ap</option><option value="ae">ae</option><option value="F">F (через fz)</option></select>. S, F, fz, ap, ae редактируются напрямую.</div>
       <div class="tiles">
         <div class="tile main"><div class="k">Обороты S</div><div class="v" id="oN">—</div><div class="u">об/мин</div></div>
         <div class="tile main"><div class="k">Подача F</div><div class="v" id="oF">—</div><div class="u">мм/мин</div></div>
@@ -1163,7 +1175,7 @@ function calc(){
   const hss = g[0]==='hss' && !t.idx, hssData=HSS_BASE[m.iso];
   const vcRef={P:180,M:110,K:150,N:600,S:90}[m.iso];
   const vcTab = hss ? hssData[strat==='rough'?0:strat==='hsm'?1:2]*(m.vc.rough/vcRef) : t.idx ? m.vc.rough*IDX_VC[m.iso]*(strat==='finish'?1.15:1) : m.vc[strat];
-  let vc = scaledVc(vcTab*(1+k.vc/100)*(hss?1:gk[0]));
+  let vc = scaledVc((num('catVc')>0 ? num('catVc') : vcTab*(hss?1:gk[0]))*(1+k.vc/100));
   let n = vc*1000/(Math.PI*D), capped=false;
   const nLim=nRec(g[0].startsWith('cn'), ld);
   if(n>nLim){ n=nLim; capped=true; }
@@ -1197,7 +1209,7 @@ function calc(){
     }
   }
   if(hss) fz=hssData[3]*Math.pow(Math.min(Math.max(D,2),25)/10,0.65)*Math.min(thin,1.3)*kAx;
-  fz = scaledFeed(fz*(1+k.fz/100)*(hss?1:gk[1]));
+  fz = scaledFeed((num('catFz')>0 ? num('catFz') : fz*(hss?1:gk[1]))*(1+k.fz/100));
   let ldf = ldFactor(ld); if(ldf<1 && ap/D<0.5) ldf = 1-(1-ldf)*0.6; fz*=ldf;
   const fzAuto = fz;
   const fzMan = manFeed('fzMan', n*z, fzAuto);
@@ -1259,7 +1271,8 @@ function calc(){
   const kzv=parseFloat($('clamp').value)||1;
   if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${$('clamp').selectedOptions[0].text}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}. fz не снижать — фреза начнёт тереть и вибрировать сильнее. Ручной ввод ap/ae не ограничивается — следите сами.`]);
   machineWarnings(W,n,F,P,{D,ap,ae,face:t.idx&&t.face});
-  if(hss) W.push(['info','Для HSS применяется отдельная осторожная стартовая таблица; уточняйте по серии фрезы, охлаждению и материалу.']);
+  if(hss && !(num('catVc')>0 && num('catFz')>0)) W.push(['info','Для HSS применяется отдельная осторожная стартовая таблица; уточняйте по серии фрезы, охлаждению и материалу.']);
+  if(num('catVc')>0||num('catFz')>0) W.push(['info',`Каталог ${$('toolMaker').value||'производитель не указан'} ${$('toolSeries').value||''}: исходные Vc/fz с поправками станка.`]);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
   $('warns').innerHTML=W.map(w=>`<div class="${w[0]}">${w[1]}</div>`).join('');
 
@@ -1267,28 +1280,30 @@ function calc(){
 }
 
 let manualApAe=false;
+function resetCatalog(){ $('catVc').value=''; $('catFz').value=''; }
 function onMat(){
   try{ localStorage.setItem('last_mat', sel.value); }catch(e){}
-  if(!manualApAe) recApAe(); calc();
+  resetCatalog(); if(!manualApAe) recApAe(); calc();
 }
 function onTool(){
   const t=tool();
   $('dia').value=t.def[0]; $('z').value=t.def[1];
-  fillGrades(); syncStratButtons(); if(!manualApAe) recApAe(); calc();
+  resetCatalog(); fillGrades(); syncStratButtons(); if(!manualApAe) recApAe(); calc();
 }
 sel.addEventListener('change', onMat);
 $('toolType').addEventListener('change', onTool);
-$('grade').addEventListener('change',()=>{ if(!manualApAe) recApAe(); calc(); });
+$('grade').addEventListener('change',()=>{ resetCatalog(); if(!manualApAe) recApAe(); calc(); });
 $('clamp').addEventListener('change',()=>{ try{localStorage.setItem('clamp',$('clamp').value)}catch(e){} if(!manualApAe) recApAe(); calc(); });
 try{ const cv=localStorage.getItem('clamp'); if(cv) $('clamp').value=cv; }catch(e){}
 document.querySelectorAll('#strat button').forEach(b=>b.addEventListener('click',()=>{
   if(b.disabled) return;
-  setStrat(b.dataset.v); if(!manualApAe) recApAe(); calc();
+  setStrat(b.dataset.v); resetCatalog(); if(!manualApAe) recApAe(); calc();
 }));
-$('dia').addEventListener('input',()=>{ if(!manualApAe) recApAe(); calc(); });
+$('dia').addEventListener('input',()=>{ resetCatalog(); if(!manualApAe) recApAe(); calc(); });
 ['ap','ae'].forEach(id=>$(id).addEventListener('input',()=>{ manualApAe=true; }));
 
 $('resetApAe').addEventListener('click',()=>{ manualApAe=false; recApAe(); calc(); });
+['catVc','catFz','toolMaker','toolSeries'].forEach(id=>$(id).addEventListener('input',calc));
 initFeedToggle('fzMan', ()=>calc());
 $('resetMan').addEventListener('click',()=>{ $('sMan').value=''; $('fzMan').value=''; calc(); });
 ['z','ld','ap','ae','nMax','pS1','pS2','vfMax','eta','sMan','fzMan'].forEach(id=>{ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
