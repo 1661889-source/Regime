@@ -1436,7 +1436,7 @@ function dCalc(){
   const zEnd = -(L+tip);
   let line = `${cyc} X0. Y0. Z${f3(zEnd)} R2.` + (q>0?` Q${f3(q)}`:'') + ` F${Math.round(F)}.`;
   $('dCode').textContent = `(ПРОВЕРИТЬ G94, ОТВОДЫ, СТОЙКУ И СОЖ)\nS${Math.round(n)} M03\n` + line + `\nG80`;
-  codeSafety('dCode',n,F);
+  codeSafety('dCode',n,F,ld>8 || (type==='udrill'&&ld>5) || (type==='spot'&&ld>1.5));
 
   if(sM>0) W.unshift(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)}.`]);
   if(fM>0) W.unshift(['info',`Подача задана вручную: ${fM.toFixed(3)} вместо ${fAuto.toFixed(3)} мм/об.`]);
@@ -1731,7 +1731,7 @@ function cCalc(){
   $('cFzK').textContent=fKey; $('cFz').textContent=fShow; $('cFzU').textContent=fUnit;
   $('cDe').textContent=nf(De,2); $('cZ').textContent=nf(Z,3);
   $('cCode').textContent='(ШАБЛОН: ПРОВЕРИТЬ СТОЙКУ, G94 И БЕЗОПАСНЫЕ ПОДВОДЫ)\n'+code.join('\n');
-  codeSafety('cCode',n,F,Dmax<De || !(De>0));
+  codeSafety('cCode',n,F,Dmax<De || !(De>0) || (cOp==='csink'&&num('cDk')<=num('cHole')));
   if($('cGrade').value==='cn') W.push(['','Китайский инструмент: проверьте биение, на фасках оно сразу видно по неровной ширине фаски.']);
   machineWarnings(W,n,F,0);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
@@ -1812,7 +1812,7 @@ function kCalc(){
     `G84 X__ Y__ Z${f3(-L)} R3. F${f3(F)}`,
     `G80`
   ].join('\n');
-  codeSafety('kCode',n,F,type==='point'&&kHole==='blind'||type==='form'&&TAPV[c][TAPI[type]]===0);
+  codeSafety('kCode',n,F,(type==='point'&&kHole==='blind')||(type==='form'&&TAPV[c][TAPI[type]]===0)||drill<=0);
   if(type==='point' && kHole==='blind') W.push(['bad','Шахматный метчик гонит стружку вперёд — в глухое отверстие не годится. Нужен с винтовой канавкой.']);
   if(type==='spiral' && kHole==='through') W.push(['info','Для сквозного быстрее и надёжнее шахматный метчик.']);
   if(k<1) W.push(['',`Поправка на ${kHole==='blind'?'глухое отверстие':''}${kHole==='blind'&&ld>2?' и ':''}${ld>2?'глубину '+nf(ld,1)+'×D':''}: Vc ×${nf(k,2)}.`]);
@@ -1885,7 +1885,7 @@ function qCalc(){
   else if($('qbType').value==='fine') code=[`(ЧИСТОВАЯ РАСТОЧКА Ø${f3(D)})`,`S${Math.round(n)} M03`,`G76 X__ Y__ Z${f3(-L)} R2. Q0.1 F${Math.round(F)}.`,`G80`,`(Q — ОТВОД ОТ СТЕНКИ ПОСЛЕ ОРИЕНТАЦИИ; НАПРАВЛЕНИЕ — ПАРАМ. 5101#4/#5)`];
   else code=[`(ЧЕРНОВАЯ РАСТОЧКА Ø${f3(D)})`,`S${Math.round(n)} M03`,`G85 X__ Y__ Z${f3(-L)} R2. F${Math.round(F)}.`,`G80`];
   $('qCode').textContent='(ПРОВЕРИТЬ G85/G76 И ЦИКЛЫ В РУКОВОДСТВЕ СТОЙКИ)\n'+code.join('\n');
-  codeSafety('qCode',n,F);
+  codeSafety('qCode',n,F,(qOp==='bore' && num('qAp')*2>=D) || (qOp==='ream' && D<=reamAllow(D,$('qrType').value==='hss')));
   if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nA)}.`]);
   machineWarnings(W,n,F,0);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
