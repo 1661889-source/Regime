@@ -362,7 +362,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
         <div class="tile"><div class="k">Толщина стружки hm</div><div class="v" id="oHm">—</div><div class="u">мм, средняя</div></div>
       </div>
       <div class="power">
-        <div class="ptext"><span>Мощность на шпинделе: <b id="oP" style="color:var(--fg)">—</b> кВт</span><span id="oPill"></span></div>
+        <div class="ptext"><span>Требуемая мощность привода: <b id="oP" style="color:var(--fg)">—</b> кВт</span><span id="oPill"></span></div>
         <div class="bar"><i id="oBar"></i></div>
         <div class="ptext" style="margin-top:4px"><span id="oPLoad"></span><span id="oPLim"></span></div>
       </div>
@@ -962,7 +962,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
       <div><label class="label" for="vfWork">Рабочая подача, мм/мин (необязательно)</label><input id="vfWork" type="number" placeholder="не задана" min="1"></div>
       <div><label class="label" for="eta">КПД привода, 0–1</label><input id="eta" type="number" value="0.8" step="0.05" min="0.1" max="1"></div>
       <div><label class="label" for="ratedRpm">Начало постоянной мощности, об/мин</label><input id="ratedRpm" type="number" placeholder="не задано" min="1"></div>
-      <div><label class="label" for="maxTorque">Длительный момент шпинделя, Н·м</label><input id="maxTorque" type="number" placeholder="не задан" min="0" step="1"></div>
+      <div><label class="label" for="maxTorque">Экв. длительный момент привода, Н·м</label><input id="maxTorque" type="number" placeholder="не задан" min="0" step="1"></div>
       <div><label class="label" for="vcScale">Поправка к авто Vc, %</label><input id="vcScale" type="number" value="100" min="10" max="200" step="5"></div>
       <div><label class="label" for="fzScale">Поправка к авто fz/f, %</label><input id="fzScale" type="number" value="100" min="10" max="200" step="5"></div>
       <div><label class="label" for="toolCutLen">Длина режущей части фрезы, мм</label><input id="toolCutLen" type="number" placeholder="не задана" min="0" step="1"></div>
@@ -1101,7 +1101,7 @@ function machineWarnings(W,n,F,P,opts={}){
   else if(P>0 && P>s1) W.push(['',`Требуется ${nf(P,1)} кВт, доступно S1 ≈${nf(s1,1)} кВт на ${nf(n)} об/мин.`]);
   const len=num('toolCutLen');
   if(opts.ap && len>0 && opts.ap>len) W.push(['bad',`ap ${nf(opts.ap,2)} выше указанной длины режущей части ${nf(len,1)} мм.`]);
-  if(opts.ae && opts.D && opts.ae>opts.D+0.001 && true) W.push(['bad',`ae ${nf(opts.ae,2)} > Ø ${nf(opts.D,2)} мм — проверьте геометрию захвата.`]);
+  if(opts.ae && opts.D && opts.ae>opts.D+0.001) W.push(['bad',`ae ${nf(opts.ae,2)} > Ø ${nf(opts.D,2)} мм — проверьте геометрию захвата.`]);
   return n>nMax+0.1 || F>vfMax+0.1 || (opts.ap && len>0 && opts.ap>len) || (opts.ae && opts.D && opts.ae>opts.D+0.001);
 }
 function scaledVc(vc){ return vc*(Math.max(1,num('vcScale')||100)/100); }
@@ -1562,7 +1562,7 @@ function tCalc(){
     g.push(`G00 Z50.`); g.push(`M05`);
   }
   $('tCode').textContent=g.join('\n');
-  const invalidGeom=tKind==='in' ? d>=D-1.0825*P || R<=0 || (R-h/Math.max(passes,1))<=0 : R<=0;
+  const invalidGeom=tKind==='in' ? d>=D-1.0825*P || R<=0 || (R-h*(1-1/Math.max(passes,1)))<=0 : R<=0;
   codeSafety('tCode',n,Fc,invalidGeom);
 
   if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)}.`]);
