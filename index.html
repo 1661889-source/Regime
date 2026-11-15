@@ -322,6 +322,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
         <h2 style="margin:0">Ручная настройка</h2>
         <div class="row">
           <div><label class="label" for="sMan">Обороты S, об/мин</label><input id="sMan" type="number" step="100" min="0" placeholder="авто"></div>
+          <div><label class="label" for="cutLen">Длина резания L, мм (для времени)</label><input id="cutLen" type="number" min="0" step="10" placeholder="не указана"></div>
           <div><div class="flab"><label class="label" for="fzMan" style="margin:0">Подача</label><div class="seg mini" id="fzManU"><button type="button" data-v="per" aria-pressed="true">fz, мм/зуб</button><button type="button" data-v="F" aria-pressed="false">F, мм/мин</button></div></div><input id="fzMan" type="number" step="0.005" min="0" placeholder="авто"></div>
         </div>
         <details class="legend" style="margin-top:10px">
@@ -332,6 +333,8 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
             <div><label class="label" for="toolSeries">Серия / артикул</label><input id="toolSeries" type="text" placeholder="точный артикул"></div>
             <div><label class="label" for="catVc">Vc по каталогу, м/мин</label><input id="catVc" type="number" min="0" step="5" placeholder="авто"></div>
             <div><label class="label" for="catFz">fz по каталогу, мм/зуб</label><input id="catFz" type="number" min="0" step="0.005" placeholder="авто"></div>
+            <div><label class="label" for="kcOverride">kc1 материала, Н/мм²</label><input id="kcOverride" type="number" min="100" step="50" placeholder="из таблицы"></div>
+            <div><label class="label" for="mcOverride">Коэффициент mc</label><input id="mcOverride" type="number" min="0.01" max="1" step="0.01" placeholder="из таблицы"></div>
           </div>
           <div class="hint">Каталоги: <a href="https://www.zccct.com/en/SampleDownload/index.aspx" target="_blank" rel="noopener">ZCC-CT</a> · <a href="https://www.sandvik.coromant.com/en-gb/knowledge/machining-formulas-definitions/milling-formulas-definitions" target="_blank" rel="noopener">Sandvik</a> · <a href="https://yg1.kr" target="_blank" rel="noopener">YG-1</a>. Без артикула числовые значения не подставляются.</div>
         </details>
@@ -353,6 +356,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
         <div class="tile"><div class="k">Скорость Vc</div><div class="v" id="oVc">—</div><div class="u">м/мин</div></div>
         <div class="tile"><div class="k">Подача на зуб fz</div><div class="v" id="oFz">—</div><div class="u">мм/зуб</div></div>
         <div class="tile"><div class="k">Съём металла Q</div><div class="v" id="oQ">—</div><div class="u">см³/мин</div></div>
+        <div class="tile"><div class="k">Время резания T</div><div class="v" id="oTime">—</div><div class="u">мин, без холостых ходов</div></div>
         <div class="tile"><div class="k">Глубина ap</div><div class="v" id="oAp">—</div><div class="u" id="oApD">мм</div></div>
         <div class="tile"><div class="k">Ширина ae</div><div class="v" id="oAe">—</div><div class="u" id="oAeD">мм</div></div>
         <div class="tile"><div class="k">Толщина стружки hm</div><div class="v" id="oHm">—</div><div class="u">мм, средняя</div></div>
@@ -1223,13 +1227,14 @@ function calc(){
   // стружка и мощность
   const phi = (t.idx && t.face) ? 2*Math.asin(aeR) : Math.acos(1-2*aeR);
   const hm = fzFact*sinK*(2*aeR)/phi;
-  const kc = m.kc*Math.pow(Math.max(hm,0.005),-m.mc);
+  const kc = (num('kcOverride')||m.kc)*Math.pow(Math.max(hm,0.005),-(num('mcOverride')||m.mc));
   const Q = ap*ae*F/1000;
   const P = ap*ae*F*kc/(60e6*eta);
 
   $('oN').textContent=nf(n); $('oF').textContent=nf(F);
   $('oVc').textContent=nf(vcFact); $('oFz').textContent=fzFact.toFixed(3);
   $('oQ').textContent=nf(Q, Q<10?1:0);
+  $('oTime').textContent=num('cutLen')>0 && F>0 ? nf(num('cutLen')/F,2) : '—';
   $('oAp').textContent=nf(ap,2); $('oApD').textContent= t.idx ? `мм · max ${nf(t.apMax,1)}` : `мм · ${nf(ap/D,2)}×D`;
   $('oAe').textContent=nf(ae,2); $('oAeD').textContent=`мм · ${nf(aeR*100,0)}% D`;
   $('oHm').textContent=hm.toFixed(3);
@@ -1280,7 +1285,7 @@ function calc(){
 }
 
 let manualApAe=false;
-function resetCatalog(){ $('catVc').value=''; $('catFz').value=''; }
+function resetCatalog(){ $('catVc').value=''; $('catFz').value=''; $('kcOverride').value=''; $('mcOverride').value=''; }
 function onMat(){
   try{ localStorage.setItem('last_mat', sel.value); }catch(e){}
   resetCatalog(); if(!manualApAe) recApAe(); calc();
@@ -1303,7 +1308,8 @@ $('dia').addEventListener('input',()=>{ resetCatalog(); if(!manualApAe) recApAe(
 ['ap','ae'].forEach(id=>$(id).addEventListener('input',()=>{ manualApAe=true; }));
 
 $('resetApAe').addEventListener('click',()=>{ manualApAe=false; recApAe(); calc(); });
-['catVc','catFz','toolMaker','toolSeries'].forEach(id=>$(id).addEventListener('input',calc));
+['catVc','catFz','toolMaker','toolSeries','cutLen'].forEach(id=>$(id).addEventListener('input',calc));
+['kcOverride','mcOverride'].forEach(id=>$(id).addEventListener('input',()=>{calc(); dCalc(); kCalc();}));
 initFeedToggle('fzMan', ()=>calc());
 $('resetMan').addEventListener('click',()=>{ $('sMan').value=''; $('fzMan').value=''; calc(); });
 ['z','ld','ap','ae','nMax','pS1','pS2','vfMax','eta','sMan','fzMan'].forEach(id=>{ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
@@ -1788,7 +1794,7 @@ function kCalc(){
   n=Math.round(n);
   const F=n*P, vcF=n*Math.PI*D/1000;
   const drill = type==='form' ? D-0.45*P : D-P;
-  const kc=m.kc*Math.pow(0.1,-m.mc);
+  const kc=(num('kcOverride')||m.kc)*Math.pow(0.1,-(num('mcOverride')||m.mc));
   let Mc=P*P*D*kc/8000; if(type==='form') Mc*=1.7;
   const Pw=Mc*n/9550/eta;
   const depth = kHole==='blind' ? L + 3*P + (type==='form'?0:0) : L;
@@ -2374,7 +2380,7 @@ document.querySelectorAll('details.fold > summary, .card > h2').forEach(x=>{ if(
       if(kind==='hm' || axis==='F'){
         const n=pn('oN'), z=Math.round(num('z')), feed=pn('oF');
         if(!(n>0 && z>0 && feed>0)) return;
-        const exponent=kind==='P' ? 1/(1-mat().mc) : 1;
+        const exponent=kind==='P' ? 1/(1-(num('mcOverride')||mat().mc)) : 1;
         const F=Math.max(1,feed*Math.pow(ratio,exponent));
         const per=F/(n*z);
         const b=document.querySelector('#fzManU button[data-v="per"]');
