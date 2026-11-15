@@ -2016,6 +2016,21 @@ function setManual(manId, val, isF){
   el.value = val>0 ? val : '';
   el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change'));
 }
+// При ручном изменении S сохраняем подачу на зуб (на оборот для сверления и расточки).
+// Если F задана в мм/мин, переводим её в подачу на зуб до нового расчёта.
+Object.values(EDIT).forEach(cfg=>{
+  if(!cfg.S || !cfg.F) return;
+  const sId=cfg.S[1], fId=cfg.F[1];
+  $(sId).addEventListener('input',()=>{
+    const feed=$(fId), k=Number(feed.dataset.k), F=Number(feed.value);
+    if(feedMode(fId)!=='F' || !(F>0) || !(k>0)) return;
+    const per=F/k;
+    if(!(per>0) || !Number.isFinite(per)) return;
+    const perBtn=document.querySelector('#'+fId+'U button[data-v="per"]');
+    if(perBtn) document.querySelectorAll('#'+fId+'U button').forEach(b=>b.setAttribute('aria-pressed',b===perBtn?'true':'false'));
+    feed.value=String(+per.toFixed(6));
+  });
+});
 Object.values(EDIT).forEach(cfg=>{
   Object.entries(cfg).forEach(([key,[vId,manId]])=>{
     const v=$(vId), tile=v && v.closest('.tile'); if(!tile) return;
@@ -2133,8 +2148,6 @@ $('hsmQ').addEventListener('click',()=>{ const t=$('hsmTip'), open=t.hidden; t.h
   const mo=new MutationObserver(upd);
   Object.values(S_ID).forEach(([v])=>{ const el=$(v); if(el) mo.observe(el,{childList:true,characterData:true,subtree:true}); });
   new MutationObserver(upd).observe($('mode'),{attributes:true,subtree:true,attributeFilter:['aria-pressed']});
-  // смена «Рабочих S» / «Макс. S» снимает ручные обороты — иначе новое значение не видно
-  ['nWork','nMax'].forEach(id=>$(id).addEventListener('input',()=>{ ['sMan','dSMan','kSMan','tSMan','qSMan','cSMan'].forEach(m=>{ const el=$(m); if(el && el.value){ el.value=''; el.dispatchEvent(new Event('input')); } }); }));
   ['input','change','keyup'].forEach(ev=>['nWork','nMax'].forEach(id=>$(id).addEventListener(ev,()=>{ try{ const b=document.querySelector('#mode button[aria-pressed="true"]'); setMode(b?b.dataset.v:'mill'); }catch(e){} upd(); })));
   document.addEventListener('input',e=>{ if(/SMan$|^sMan$/.test(e.target.id)) setTimeout(upd,0); });
   upd();
