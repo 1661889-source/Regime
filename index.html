@@ -301,7 +301,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
             <option value="0.4">Вакуум / магнит</option>
             <option value="0.3">Скотч + клей</option>
           </select>
-          <div class="hint">Снижает ap (и ae при слабом зажиме). Подачу на зуб не трогает.</div>
+          <div class="hint">При слабом закреплении снижает автоматические S/F; во фрезеровании также fz и ap/ae. При работе метчиком шаг P сохраняется, F=S×P. Ручные S/fz не меняются. Коэффициенты ориентировочные, удержание заготовки не рассчитано.</div>
         </div>
         <div class="row3">
           <div><label class="label" for="dia">Ø фрезы, мм</label><input id="dia" type="number" value="10" min="1" max="200" step="0.5"></div>
@@ -1092,12 +1092,28 @@ function nRec(cn, ld){
 function recNote(nLim){ const nMax=num('nMax')||12000; return nLim<nMax ? ` Рекомендуемые обороты ${nf(nLim)} (${recWhy}). Станок даёт до ${nf(nMax)} — если нет вибрации, поднимите вручную в плитке «Обороты S».` : ''; }
 // Допустимая непрерывная мощность: если паспортной кривой нет, возвращаем заданную S1.
 function escapeText(v){return String(v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+// Некорректный ввод никогда не оставляет прежние результаты или копируемый G-код.
+function invalidateResult(ids, codeId, warnsId, message){
+  ids.forEach(id=>{ const el=$(id); if(el) el.textContent='—'; });
+  if(codeId){ const el=$(codeId); el.textContent='(ОШИБКА ВВОДА: исправьте параметры до генерации G-кода)';
+    el.dataset.unsafe='true'; }
+  if(warnsId) $(warnsId).innerHTML='<div class="bad">'+escapeText(message||'Параметры должны быть положительными. Исправьте ввод.')+'</div>';
+}
 function machinePower(n){
   let s1=num('pS1')||7.5;
   const rated=num('ratedRpm'), torque=num('maxTorque');
   if(rated>0 && n>0) s1=Math.min(s1,s1*n/rated);
   if(torque>0 && n>0) s1=Math.min(s1,torque*n/9550);
   return s1;
+}
+// Консервативная эвристика для слабого закрепления; НЕ модель удерживающей силы.
+function fixtureK(){ return Math.min(1,Math.max(0.3,parseFloat($('clamp').value)||1)); }
+function fixtureAutoN(n){ return n*Math.sqrt(fixtureK()); }
+function fixtureInfo(W){
+  const k=fixtureK();
+  if(k>=0.999) return;
+  const label=escapeText($('clamp').selectedOptions[0]?.text||'слабое закрепление');
+  W.push([k<=0.4?'bad':'',`Закрепление «${label}»: для операций с осевой нагрузкой и вибрацией автоматические S/F скорректированы (S ×${nf(Math.sqrt(k),2)}); во фрезеровании также уменьшается автоматическая fz. Шаг метчика сохраняется. Это стартовая эвристика: сила удержания, силы резания и риск срыва заготовки НЕ проверены. При ручных S/F предупреждение остаётся.`]);
 }
 function machineWarnings(W,n,F,P,opts={}){
   const nMax=num('nMax')||12000, nWork=Math.min(num('nWork')||nMax,nMax),
@@ -1110,6 +1126,7 @@ function machineWarnings(W,n,F,P,opts={}){
   if(num('pS1')>0 && s2<num('pS1')) W.push(['bad','В профиле станка S2 меньше S1: проверьте паспортные параметры.']);
   if(P>0 && P>s2) W.push(['bad',`Нужна мощность ${nf(P,1)} кВт, выше S2 ${nf(s2,1)} кВт.`]);
   else if(P>0 && P>s1) W.push(['',`Требуется ${nf(P,1)} кВт, доступно S1 ≈${nf(s1,1)} кВт на ${nf(n)} об/мин.`]);
+  fixtureInfo(W);
   const len=num('toolCutLen');
   if(opts.ap && len>0 && opts.ap>len) W.push(['bad',`ap ${nf(opts.ap,2)} выше указанной длины режущей части ${nf(len,1)} мм.`]);
   if(opts.ae && opts.D && opts.ae>opts.D+0.001) W.push(['bad',`ae ${nf(opts.ae,2)} > Ø ${nf(opts.D,2)} мм — проверьте геометрию захвата.`]);
@@ -1155,7 +1172,7 @@ function syncStratButtons(){
   if(tool().idx && strat==='hsm') setStrat('rough');
 }
 
-function recApAe(){
+function recommendedApAe(){
   const m=mat(), D=num('dia'), t=tool();
   let ap, ae;
   if(t.idx){
@@ -1168,9 +1185,15 @@ function recApAe(){
     if(strat==='finish'){ ae = Math.min(Math.max(ae,0.1),0.5); }
   }
   const kz=parseFloat($('clamp').value)||1;
-  ap*=kz; if(kz<0.6) ae*=0.7;
-  $('ap').value = +ap.toFixed(2);
-  $('ae').value = +ae.toFixed(2);
+  const overhang=ldFactor(num('ld'));
+  ap*=kz*overhang;
+  if(kz<0.6) ae*=0.7;
+  if(overhang<=0.55) ae*=0.8;
+  return {ap:+ap.toFixed(2), ae:+ae.toFixed(2)};
+}
+function recApAe(){
+  const r=recommendedApAe();
+  $('ap').value=r.ap; $('ae').value=r.ae;
 }
 
 function ldFactor(ld){ return ld<=3?1 : ld<=4?0.85 : ld<=5?0.7 : ld<=6?0.55 : 0.4; }
@@ -1180,10 +1203,17 @@ function calc(){
   const t=tool(), g=grade(), gk=g[2][m.iso];
   const D=num('dia'), z=Math.round(num('z')), ld=num('ld');
   const ap=num('ap'), ae=num('ae');
+  const rec=recommendedApAe();
+  $('apaeHint').textContent=manualApAe
+    ? `Ручные ap/ae сохранены · рекомендуемые: ${nf(rec.ap,2)} / ${nf(rec.ae,2)} мм`
+    : `Авто с учётом материала, стратегии и закрепления: ${nf(rec.ap,2)} / ${nf(rec.ae,2)} мм`;
   const nMax=num('nMax')||12000, pS1=num('pS1')||7.5, pS2=num('pS2')||11, vfMax=num('vfMax')||10000, eta=num('eta')||0.8;
   const k={vc:0, fz:0};
   const W=[];
-  if(D<=0||z<=0||ap<=0||ae<=0){ return; }
+  if(D<=0||z<=0||ap<=0||ae<=0){
+    invalidateResult(['oN','oF','oVc','oFz','oQ','oTime','oAp','oAe','oHm','oP'],null,'warns','Проверьте диаметр, число зубьев, глубину ap и ширину ae.');
+    $('oBar').style.width='0%'; $('oPill').textContent=''; $('oPLoad').textContent=''; return;
+  }
   const aeR = Math.min(ae/D,1);
 
   // Vc
@@ -1194,6 +1224,7 @@ function calc(){
   let n = vc*1000/(Math.PI*D), capped=false;
   const nLim=nRec(g[0].startsWith('cn'), ld);
   if(n>nLim){ n=nLim; capped=true; }
+  n=fixtureAutoN(n);
   const nAuto = n;
   const sMan = num('sMan');
   if(sMan>0){ n=sMan; capped = sMan>nMax; }
@@ -1226,6 +1257,9 @@ function calc(){
   if(hss) fz=hssData[3]*Math.pow(Math.min(Math.max(D,2),25)/10,0.65)*Math.min(thin,1.3)*kAx;
   fz = scaledFeed((num('catFz')>0 ? num('catFz') : fz*(hss?1:gk[1]))*(1+k.fz/100));
   let ldf = ldFactor(ld); if(ldf<1 && ap/D<0.5) ldf = 1-(1-ldf)*0.6; fz*=ldf;
+  // Слабый зажим: не компенсируем меньшие ap/ae ростом fz.
+  // Только для автоматической рекомендации; заданная вручную fz сохраняется.
+  if(fixtureK()<1) fz*=Math.sqrt(fixtureK());
   const fzAuto = fz;
   const fzMan = manFeed('fzMan', n*z, fzAuto);
   if(fzMan>0) fz = fzMan;
@@ -1268,13 +1302,14 @@ function calc(){
   if(sMan>nMax) W.push(['bad',`S ${nf(sMan)} превышает паспортный максимум станка ${nf(nMax)}. Не запускать.`]);
   else if(capped && !(sMan>0)) W.push(['info',`Обороты ${nf(nLim)}: табличная Vc ${nf(vc)} м/мин на Ø${D} не достигается. Добирайте производительность подачей и ap/ae.`+recNote(nLim)]);
   if(fcap) W.push(['bad',`Подача F ${nf(F)} превышает максимум станка ${nf(vfMax)}. fz сохранена; для работы снизьте S или fz.`]);
-  const fitBtn=` <button type="button" class="btn fitP" data-k="${(pS1*0.9/P).toFixed(4)}">Подогнать ap под ${nf(pS1*0.9,1)} кВт</button>`;
-  if(P>pS2) W.push(['bad',`Не хватит мощности: нужно ${nf(P,1)} кВт. Уменьшите ae или ap примерно в ${nf(P/pS1,1)} раза.`+fitBtn]);
+  const fitPower=machinePower(n)*0.9;
+  const fitBtn=` <button type="button" class="btn fitP" data-k="${(fitPower/P).toFixed(4)}">Подогнать ap под ${nf(fitPower,1)} кВт</button>`;
+  if(P>pS2) W.push(['bad',`Не хватит мощности: нужно ${nf(P,1)} кВт. Уменьшите ae/ap; ориентир для длительной работы ${nf(fitPower,1)} кВт.`+fitBtn]);
   else if(P>machinePower(n)) W.push(['',`Выше доступной мощности S1 при текущих оборотах. Уменьшите ap или ae.`+fitBtn]);
   if(t.idx && ap>t.apMax) W.push(['bad',`ap ${nf(ap,1)} мм больше допустимого для пластины (${nf(t.apMax,1)} мм).`]);
   if(t.idx && kap>1.05 && !(fzMan>0)) W.push(['info',`Угол в плане: подача поднята ×${nf(kap,2)} (fz = hex / sin κ).`]);
   if(t.idx && t.kappa===0 && ap>2.5) W.push(['',`На круглой пластине выгоднее ap ≤ 2,5 мм: подача растёт за счёт утонения стружки.`]);
-  if(ldf<1 && !(fzMan>0)) W.push(['',`Вылет ${ld}×D: fz снижена до ${nf(ldf*100)}%. ap тоже уменьшите, иначе вибрация.${t.idx?' На длинном вылете лучше высокоподачная.':' Для длинных вылетов лучше трохоида с малым ae.'}`]);
+  if(ldf<1 && !(fzMan>0)) W.push(['',`Вылет ${ld}×D: fz снижена до ${nf(ldf*100)}%. ${manualApAe?'Ручные ap/ae проверьте по рекомендациям.':'Рекомендуемая ap автоматически уменьшена.'}${t.idx?' На длинном вылете лучше высокоподачная.':' Для длинных вылетов лучше трохоида с малым ae.'}`]);
   if(Math.abs(kAx-1)>0.01 && !(fzMan>0)) W.push(['info',`Глубина ap ${t.idx?nf(ap,1)+' мм из '+nf(t.apMax,1):nf(ap/D,2)+'×D'}: подача на зуб ${kAx>1?'поднята':'снижена'} ×${nf(kAx,2)}${kAx>1?' — на малой глубине меньше нагрузка и прогиб фрезы':' — длинная кромка в работе, больше прогиб'}.`]);
   if(thin>1.05 && strat!=='finish' && !(fzMan>0)) W.push(['info',`ae ${nf(aeR*100)}% D — подача поднята на утонение стружки ×${nf(thin,2)}.`]);
   if(!t.idx && strat==='hsm' && ap>3*D) W.push(['',`ap больше 3×D — проверьте длину режущей части фрезы.`]);
@@ -1286,7 +1321,9 @@ function calc(){
   if(m.iso==='S' && g[0]==='cn45') W.push(['bad',`HRC45 по титану не рекомендуется.`]);
   if(g[0].startsWith('cn')) W.push(['',`Китайский инструмент: проверьте биение и начните новую партию с расчётных режимов, поднимайте по факту.`]);
   const kzv=parseFloat($('clamp').value)||1;
-  if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${$('clamp').selectedOptions[0].text}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}. fz не снижать — фреза начнёт тереть и вибрировать сильнее. Ручной ввод ap/ae не ограничивается — следите сами.`]);
+  if(manualApAe && (ap>rec.ap*1.05 || ae>rec.ae*1.05))
+    W.push([kzv<0.6?'bad':'',`Ручные ap/ae (${nf(ap,2)} / ${nf(ae,2)} мм) выше рекомендаций (${nf(rec.ap,2)} / ${nf(rec.ae,2)} мм). Проверьте закрепление; значения сохранены.`]);
+  if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${escapeText($('clamp').selectedOptions[0].text)}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}, автоматические S/fz снижены, F/Q/мощность пересчитаны. Ручные параметры сохраняются; безопасное удержание не подтверждено.`]);
   machineWarnings(W,n,F,P,{D,ap,ae,face:t.idx&&t.face});
   if(hss && !(num('catVc')>0 && num('catFz')>0)) W.push(['info','Для HSS применяется отдельная осторожная стартовая таблица; уточняйте по серии фрезы, охлаждению и материалу.']);
   if(num('catVc')>0||num('catFz')>0) W.push(['info',`Каталог ${escapeText($('toolMaker').value||'производитель не указан')} ${escapeText($('toolSeries').value||'')}: исходные Vc/fz с поправками станка.`]);
@@ -1310,7 +1347,7 @@ function onTool(){
 sel.addEventListener('change', onMat);
 $('toolType').addEventListener('change', onTool);
 $('grade').addEventListener('change',()=>{ resetCatalog(); if(!manualApAe) recApAe(); calc(); });
-$('clamp').addEventListener('change',()=>{ try{localStorage.setItem('clamp',$('clamp').value)}catch(e){} if(!manualApAe) recApAe(); calc(); });
+$('clamp').addEventListener('change',()=>{ try{localStorage.setItem('clamp',$('clamp').value)}catch(e){} if(!manualApAe) recApAe(); calc(); dCalc(); tCalc(); kCalc(); qCalc(); cCalc(); bCalc(); });
 try{ const cv=localStorage.getItem('clamp'); if(cv) $('clamp').value=cv; }catch(e){}
 document.querySelectorAll('#strat button').forEach(b=>b.addEventListener('click',()=>{
   if(b.disabled) return;
@@ -1324,7 +1361,9 @@ $('resetApAe').addEventListener('click',()=>{ manualApAe=false; recApAe(); calc(
 ['kcOverride','mcOverride'].forEach(id=>$(id).addEventListener('input',()=>{calc(); dCalc(); kCalc();}));
 initFeedToggle('fzMan', ()=>calc());
 $('resetMan').addEventListener('click',()=>{ $('sMan').value=''; $('fzMan').value=''; calc(); });
-['z','ld','ap','ae','nMax','pS1','pS2','vfMax','eta','sMan','fzMan'].forEach(id=>{ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
+$('ld').addEventListener('input',()=>{ if(!manualApAe) recApAe(); calc(); });
+$('ld').addEventListener('change',()=>{ if(!manualApAe) recApAe(); calc(); });
+['z','ap','ae','nMax','pS1','pS2','vfMax','eta','sMan','fzMan'].forEach(id=>{ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
 
 fillGrades(); syncStratButtons(); onMat();
 </script>
@@ -1391,7 +1430,10 @@ const POINT = {cI:140,cE:140,cAl:140,hss:118,hssco:118,udrill:180,spot:90};
 function dCalc(){
   const m=mat(); if(!m) return;
   const c=SUBCAT[m.id], d=DR[c], type=$('dType').value, gk=GRADE_K[$('dGrade').value];
-  const D=num('dD'), L=num('dL'); if(D<=0||L<=0) return;
+  const D=num('dD'), L=num('dL'); if(D<=0||L<=0){
+    invalidateResult(['dN','dF','dVc','dFr','dLD','dM','dCyc','dTip','dP'],'dCode','dWarns','Введите положительные диаметр сверла и глубину.');
+    $('dBar').style.width='0%'; $('dPill').textContent=''; return;
+  }
   const nMax=num('nMax')||12000, vfMax=num('vfMax')||10000, eta=num('eta')||0.8;
   const ld=L/D, W=[];
   let vc, f, cyc='G81', q=0;
@@ -1421,6 +1463,7 @@ function dCalc(){
 
   const nLim=nRec($('dGrade').value==='cn', 0);
   let n=vc*1000/(Math.PI*D), capped=false; if(n>nLim){ n=nLim; capped=true; }
+  n=fixtureAutoN(n);
   const nAuto=n, fAuto=f;
   const sM=num('dSMan');
   if(sM>0) n=sM;
@@ -1447,7 +1490,7 @@ function dCalc(){
   const zEnd = -(L+tip);
   let line = `${cyc} X0. Y0. Z${f3(zEnd)} R2.` + (q>0?` Q${f3(q)}`:'') + ` F${Math.round(F)}.`;
   $('dCode').textContent = `(ШАБЛОН: ПРОВЕРИТЬ G94, ОТВОДЫ, СТОЙКУ И СОЖ)\nG94\nS${Math.round(n)} M03\n` + line + `\nG80`;
-  codeSafety('dCode',n,F,ld>8 || (type==='udrill'&&ld>5) || (type==='spot'&&ld>1.5));
+  codeSafety('dCode',n,F,ld>8 || (type==='udrill'&&ld>5) || (type==='spot'&&ld>1.5) || P>(num('pS2')||11));
 
   if(sM>0) W.unshift(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)}.`]);
   if(fM>0) W.unshift(['info',`Подача задана вручную: ${fM.toFixed(3)} вместо ${fAuto.toFixed(3)} мм/об.`]);
@@ -1500,7 +1543,9 @@ function tCalc(){
   const m=mat(); if(!m) return;
   const c=SUBCAT[m.id], tv=TV[c], type=$('tType').value, gk={prem:[1,1],mid:[0.9,0.9],cn:[0.7,0.7]}[$('tGrade').value];
   const D=num('tD'), P=num('tP'), L=num('tL'), d=num('td'), z=Math.round(num('tz'));
-  if(D<=0||P<=0||L<=0||d<=0||z<=0) return;
+  if(D<=0||P<=0||L<=0||d<=0||z<=0){
+    invalidateResult(['tN','tF','tVc','tFz','tFp','tPass','tR','tFe'],'tCode','tWarns','Проверьте размеры резьбы, шаг и геометрию резьбофрезы.'); return;
+  }
   const nMax=num('nMax')||12000, W=[];
   let vc=scaledVc(tv[0]*gk[0]*(type==='idx'?1.15:1));
   let fz=scaledFeed(tv[1]*Math.min(1,Math.max(0.3,d/12))*gk[1]*(type==='multi'?1:1.3));
@@ -1509,6 +1554,7 @@ function tCalc(){
   if(type==='multi' && L>2*d) passes+=1;
   const nLim=nRec($('tGrade').value==='cn', 0);
   let n=vc*1000/(Math.PI*d), capped=false; if(n>nLim){ n=nLim; capped=true; }
+  n=fixtureAutoN(n);
   const nAuto=n, fzAuto=fz, pAuto=passes;
   const sM=num('tSMan'), pM=Math.round(num('tPassMan'));
   if(sM>0) n=sM; if(pM>0) passes=pM;
@@ -1575,7 +1621,7 @@ function tCalc(){
   }
   $('tCode').textContent=g.join('\n');
   const invalidGeom=tKind==='in' ? d>=D-1.0825*P || R<=0 || (R-h*(1-1/Math.max(passes,1)))<=0 : R<=0;
-  codeSafety('tCode',n,Fc,invalidGeom);
+  codeSafety('tCode',n,Fc,invalidGeom || Fp>(num('vfMax')||10000));
 
   if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)}.`]);
   if(capped && !(sM>0)) W.push(['info',`Обороты ${nf(nLim)}.`+recNote(nLim)]);
@@ -1662,7 +1708,9 @@ function cCalc(){
   const Dmax=num('cDmax'), z=Math.round(num('cz'));
   const nMax=num('nMax')||12000, vfMax=num('vfMax')||10000, W=[];
   const nLim=nRec($('cGrade').value==='cn', 0);
-  if(Dmax<=0||z<=0) return;
+  if(Dmax<=0||z<=0){
+    invalidateResult(['cN','cF','cVc','cFz','cDe','cZ','cX','cY'],'cCode','cWarns','Проверьте диаметр и количество зубьев фасочного инструмента.'); return;
+  }
   let n, F, vc, fz, De, Z, code=[], fShow, fUnit, fKey;
 
   if(cOp!=='csink'){
@@ -1677,6 +1725,7 @@ function cCalc(){
     if(cOp==='deburr') fz*=1.2;
     vc=scaledVc(vc); fz=scaledFeed(fz);
     let nA = vc*1000/(Math.PI*Math.max(De,0.5)), capped=false; if(nA>nLim){ nA=nLim; capped=true; }
+    nA=fixtureAutoN(nA);
     const sM=num('cSMan');
     n = sM>0 ? sM : nA;
     const fzA=fz, fM=manFeed('cFMan', n*z, fzA); if(fM>0) fz=fM;
@@ -1715,6 +1764,7 @@ function cCalc(){
     let f = (0.05 + 0.003*Dk) * C_FZK[c] * gk[1] * (t==='hss1'?1.2:1) * (t==='spot'?0.8:1);
     vc=scaledVc(vc); f=scaledFeed(f);
     let nA = vc*1000/(Math.PI*Dk), capped=false; if(nA>nLim){ nA=nLim; capped=true; }
+    nA=fixtureAutoN(nA);
     const sM=num('cSMan');
     n = sM>0 ? sM : nA;
     const fA=f, fM=manFeed('cFMan', n, fA); if(fM>0) f=fM;
@@ -1742,7 +1792,8 @@ function cCalc(){
   $('cFzK').textContent=fKey; $('cFz').textContent=fShow; $('cFzU').textContent=fUnit;
   $('cDe').textContent=nf(De,2); $('cZ').textContent=nf(Z,3);
   $('cCode').textContent='(ШАБЛОН: ПРОВЕРИТЬ СТОЙКУ, G94 И БЕЗОПАСНЫЕ ПОДВОДЫ)\nG94\n'+code.join('\n');
-  codeSafety('cCode',n,F,Dmax<De || !(De>0) || (cOp==='csink'&&num('cDk')<=num('cHole')));
+  const upperD = cOp==='csink' ? num('cDk') : num('cTip')+2*(num('cT')+num('cC'))*ta;
+  codeSafety('cCode',n,F,upperD>Dmax || !(De>0) || (cOp==='csink'&&num('cDk')<=num('cHole')));
   if($('cGrade').value==='cn') W.push(['','Китайский инструмент: проверьте биение, на фасках оно сразу видно по неровной ширине фаски.']);
   machineWarnings(W,n,F,0);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
@@ -1788,7 +1839,9 @@ function kFill(){ const v=$('kSize').value; if(v==='c') return; const t=TH[+v]; 
 function kCalc(){
   const m=mat(); if(!m) return;
   const c=SUBCAT[m.id], type=$('kType').value, D=num('kD'), P=num('kP'), L=num('kL');
-  if(D<=0||P<=0||L<=0) return;
+  if(D<=0||P<=0||L<=0){
+    invalidateResult(['kN','kF','kVc','kDrill','kDepth','kM','kP2','kProf'],'kCode','kWarns','Проверьте диаметр, шаг и глубину резьбы.'); return;
+  }
   const nMax=num('nMax')||12000, eta=num('eta')||0.8, W=[];
   let vc=TAPV[c][TAPI[type]];
   const g=$('kGrade').value, gk = g==='cn'?0.75 : g==='mid'?0.9 : 1;
@@ -1801,7 +1854,8 @@ function kCalc(){
   vc*=k;
   const nLim=nRec($('kGrade').value==='cn', 0);
   let n=vc*1000/(Math.PI*D); if(n>nLim) n=nLim;
-  const nA=n, sM=num('kSMan'); if(sM>0) n=Math.min(sM,nMax);
+  n=fixtureAutoN(n);
+  const nA=n, sM=num('kSMan'); if(sM>0) n=sM;
   $('kSMan').placeholder='авто '+nf(nA);
   n=Math.round(n);
   const F=n*P, vcF=n*Math.PI*D/1000;
@@ -1823,7 +1877,7 @@ function kCalc(){
     `G84 X__ Y__ Z${f3(-L)} R3. F${f3(F)}`,
     `G80`
   ].join('\n');
-  codeSafety('kCode',n,F,(type==='point'&&kHole==='blind')||(type==='form'&&TAPV[c][TAPI[type]]===0)||drill<=0);
+  codeSafety('kCode',n,F,(type==='point'&&kHole==='blind')||(type==='form'&&(TAPV[c][TAPI[type]]===0||m.id==='ls59'))||drill<=0||Pw>(num('pS2')||11));
   if(type==='point' && kHole==='blind') W.push(['bad','Шахматный метчик гонит стружку вперёд — в глухое отверстие не годится. Нужен с винтовой канавкой.']);
   if(type==='spiral' && kHole==='through') W.push(['info','Для сквозного быстрее и надёжнее шахматный метчик.']);
   if(k<1) W.push(['',`Поправка на ${kHole==='blind'?'глухое отверстие':''}${kHole==='blind'&&ld>2?' и ':''}${ld>2?'глубину '+nf(ld,1)+'×D':''}: Vc ×${nf(k,2)}.`]);
@@ -1850,7 +1904,9 @@ segInit('qThr', v=>{ qThr=v; qCalc(); });
 function reamAllow(D,hss){ const t=hss?[0.15,0.2,0.25,0.32,0.42]:[0.12,0.18,0.22,0.28,0.35]; return D<=6?t[0]:D<=10?t[1]:D<=18?t[2]:D<=30?t[3]:t[4]; }
 function qCalc(){
   const m=mat(); if(!m) return;
-  const c=SUBCAT[m.id], D=num('qD'), L=num('qL'); if(D<=0||L<=0) return;
+  const c=SUBCAT[m.id], D=num('qD'), L=num('qL'); if(D<=0||L<=0){
+    invalidateResult(['qN','qF','qVc','qFr','qX1','qX2','qRaO','qIT'],'qCode','qWarns','Диаметр и глубина отверстия должны быть положительными.'); return;
+  }
   const nMax=num('nMax')||12000, gk=GK3[$('qGrade').value], W=[];
   let vc, f, code, raO, it;
   if(qOp==='ream'){
@@ -1871,10 +1927,9 @@ function qCalc(){
     else { f=0.3; }
     if(c==='M'||c==='M2'||c==='S1'||c==='S2') f*=0.8;
     f*=gk[1];
-    let kl=1; if(ld>6){ W.push(['bad','Вылет больше 6×D — нужна ТС-оправка или демпфер, иначе вибрация.']); kl=0.6; } else if(ld>4){ kl=0.8; f*=0.7; }
+    let kl=1; if(ld>6){ W.push(['bad','Вылет больше 6×D — нужна ТС-оправка или демпфер, иначе вибрация.']); kl=0.6; f*=0.6; } else if(ld>4){ kl=0.8; f*=0.7; }
     vc*=kl;
-    const ra=f*f*1000/(32*re)*1.5;
-    raO=nf(ra,2); it= fine?'IT6–7':'IT9–11';
+    raO='—'; it= fine?'IT6–7':'IT9–11';
     $('qX1k').textContent='ap на сторону'; $('qX1').textContent=nf(ap,2); $('qX1u').textContent='мм';
     $('qX2k').textContent='Ø до расточки'; $('qX2').textContent=nf(D-2*ap,2); $('qX2u').textContent='мм';
     if(fine && ap<re/2) W.push(['',`ap ${nf(ap,2)} меньше rε/2 — пластина будет скользить, а не резать. Оставьте ≥ ${nf(re/2,2)} мм.`]);
@@ -1885,11 +1940,16 @@ function qCalc(){
   vc=scaledVc(vc); f=scaledFeed(f);
   const nLim=nRec($('qGrade').value==='cn', qOp==='bore'?num('qLD'):0);
   let n=vc*1000/(Math.PI*D); if(n>nLim){ n=nLim; W.push(['info',`Обороты ${nf(nLim)}.`+recNote(nLim)]); }
+  n=fixtureAutoN(n);
   const nA=n, fA=f, sM=num('qSMan');
   if(sM>0) n=sM;
   const fM=manFeed('qFMan', n, fA); if(fM>0) f=fM;
   $('qSMan').placeholder='авто '+nf(nA);
   const F=n*f, vcF=n*Math.PI*D/1000;
+  if(qOp==='bore'){
+    const re=parseFloat($('qRe').value);
+    raO=re>0 ? nf(f*f*1000/(32*re)*1.5,2) : '—';
+  }
   $('qN').textContent=nf(n); $('qF').textContent=nf(F); $('qVc').textContent=nf(vcF); $('qFr').textContent=f.toFixed(3);
   $('qRaO').textContent=raO; $('qIT').textContent=it;
   if(qOp==='ream') code=[`(РАЗВЁРТКА Ø${f3(D)} H7)`,`S${Math.round(n)} M03`,`G85 X__ Y__ Z${f3(-L)} R2. F${Math.round(F)}.`,`G80`];
@@ -1915,19 +1975,24 @@ function bCalc(){
   const m=mat(); if(!m) return; const W=[];
   if(bOp==='ball'){
     const D=num('bD'), z=Math.round(num('bz')), ap=num('bAp'), sl=num('bSlope'), h=num('bH')/1000, gk=GK3[$('bGrade').value];
-    if(D<=0||z<=0||ap<=0||h<=0) return;
+    if(D<=0||z<=0||ap<=0||h<=0){
+      invalidateResult(['bN','bF','bDe','bVc','bFz','bAe','bRa','bHf'],null,'bWarns','Проверьте диаметр, число зубьев, глубину ap и гребешок h.'); return;
+    }
     const nMax=num('nMax')||12000;
     const ang=Math.min(Math.PI/2, sl*Math.PI/180 + Math.acos(1-2*Math.min(ap,D/2)/D));
     const De=D*Math.sin(ang);
     const vc=scaledVc(m.vc.finish*gk[0]);
     const nLim=nRec($('bGrade').value==='cn', 0);
     let n=vc*1000/(Math.PI*Math.max(De,0.1)), capped=false; if(n>nLim){ n=nLim; capped=true; }
+    n=fixtureAutoN(n);
     const nAuto=n; if(num('bSMan')>0) n=num('bSMan');
-    const fManual=manFeed('bFzMan',n*z,fz); if(fManual>0) fz=fManual;
     const thin=Math.min(D/Math.max(De,0.01),2.5);
     let fz=scaledFeed(m.ff*Math.pow(Math.min(Math.max(D,1),20)/10,0.8)*thin*gk[1]);
+    const fzAuto=fz, fManual=manFeed('bFzMan',n*z,fzAuto); if(fManual>0) fz=fManual;
     const F=n*z*fz, vcF=n*Math.PI*De/1000;
-    const ae=2*Math.sqrt(h*(D-h));
+    const hSafe=Math.min(h,D);
+    const ae=2*Math.sqrt(hSafe*(D-hSafe));
+    if(h>=D) W.push(['bad','Высота гребешка не может быть равна диаметру фрезы или больше него. Проверьте h.']);
     const hf=fz*fz/(4*D)*1000;
     $('bN').textContent=nf(n); $('bF').textContent=nf(F); $('bDe').textContent=nf(De,2); $('bVc').textContent=nf(vcF);
     $('bFz').textContent=fz.toFixed(3); $('bAe').textContent=nf(ae,3); $('bRa').textContent=nf(h*1000/4,2); $('bHf').textContent=nf(hf,2);
@@ -1992,7 +2057,10 @@ function lCalc(){
   $('lTL').textContent = holes ? 'Стойкость, отверстий' : (ins ? 'Стойкость кромки, мин' : 'Стойкость, мин');
   $('lPriceL').textContent = ins ? 'Цена пластины, ₽' : 'Цена, ₽';
   const use=num('lUse'), dv=num('lVc'), batch=Math.max(1,Math.round(num('lBatch')));
-  if(use<=0) return;
+  if(use<=0){
+    invalidateResult(['lCA','lCB'],null,'lWarns','Время обработки или количество отверстий должно быть больше нуля.');
+    document.querySelector('#lOut tbody').textContent=''; return;
+  }
   const kT=Math.pow(1/Math.max(1+dv/100,0.1), 1/L.n);
   const calcV=(s)=>{
     const price=num('lPrice'+s), T=num('lT'+s)*kT;
@@ -2120,7 +2188,9 @@ function updateAllModes(){
   if(machineQueued) return; machineQueued=true;
   requestAnimationFrame(()=>{
     machineQueued=false;
-    try{ calc(); dCalc(); tCalc(); kCalc(); qCalc(); cCalc(); bCalc(); }catch(e){ console.error('Ошибка пересчёта профиля',e); }
+    Object.entries(CALCS).forEach(([mode,fn])=>{
+      try{ fn(); }catch(e){ console.error('Ошибка пересчёта режима '+mode,e); }
+    });
   });
 }
 MACHINE_FIELDS.forEach(id=>{
@@ -2191,8 +2261,8 @@ $('warns').addEventListener('click',e=>{
   const k=parseFloat(b.dataset.k), t=TOOLS[$('toolType').value];
   let ap=num('ap')*k;
   // подача на зуб растёт при уменьшении ap — даём запас и пересчитываем ещё раз
-  $('ap').value=+ap.toFixed(2); calc();
-  for(let i=0;i<4;i++){ const P=pn('oP'), lim=(num('pS2')||11)*0.9; if(P<=lim*1.02) break; ap=num('ap')*lim/P; $('ap').value=+ap.toFixed(2); calc(); }
+  $('ap').value=+ap.toFixed(2); manualApAe=true; calc();
+  for(let i=0;i<4;i++){ const P=pn('oP'), lim=machinePower(pn('oN'))*0.9; if(P<=lim*1.02) break; ap=num('ap')*lim/P; $('ap').value=+ap.toFixed(2); calc(); }
 });
 </script>
 <script>
@@ -2241,7 +2311,7 @@ Object.entries(EXP_TILE).forEach(([id,txt])=>{
 });
 const EXP_INPUT = {
   dia:'диаметр фрезы', z:'зубьев у фрезы или пластин в корпусе', ld:'длина от патрона до кончика / диаметр', ap:'глубина по Z за проход', ae:'ширина захвата сбоку',
-  clamp:'как держится деталь — от этого допустимая глубина', toolType:'монолит или корпус со сменными пластинами', grade:'класс инструмента меняет режимы',
+  clamp:'тип закрепления влияет на безопасные ap/ae и предупреждения', toolType:'монолит или корпус со сменными пластинами', grade:'класс инструмента меняет режимы',
   nMax:'больше станок не даёт', nWork:'до скольки считать рекомендуемые', mat:'марка обрабатываемого материала',
   dD:'диаметр сверла', dL:'глубина отверстия по полному диаметру', kL:'длина резьбы в отверстии', tL:'длина резьбы', td:'диаметр резьбофрезы', tz:'зубьев у резьбофрезы',
   qD:'диаметр готового отверстия', qL:'глубина обработки', qAp:'сколько снимаем на сторону', qLD:'длина расточной оправки / диаметр',
