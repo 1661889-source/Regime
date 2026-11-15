@@ -1263,26 +1263,29 @@ function calc(){
   document.querySelectorAll('#matTable tr[data-id]').forEach(tr=>tr.classList.toggle('sel', tr.dataset.id===m.id));
 }
 
+let manualApAe=false;
 function onMat(){
   try{ localStorage.setItem('last_mat', sel.value); }catch(e){}
-  recApAe(); calc();
+  if(!manualApAe) recApAe(); calc();
 }
 function onTool(){
   const t=tool();
   $('dia').value=t.def[0]; $('z').value=t.def[1];
-  fillGrades(); syncStratButtons(); recApAe(); calc();
+  fillGrades(); syncStratButtons(); if(!manualApAe) recApAe(); calc();
 }
 sel.addEventListener('change', onMat);
 $('toolType').addEventListener('change', onTool);
-$('grade').addEventListener('change', calc);
-$('clamp').addEventListener('change',()=>{ try{localStorage.setItem('clamp',$('clamp').value)}catch(e){} recApAe(); calc(); });
+$('grade').addEventListener('change',()=>{ if(!manualApAe) recApAe(); calc(); });
+$('clamp').addEventListener('change',()=>{ try{localStorage.setItem('clamp',$('clamp').value)}catch(e){} if(!manualApAe) recApAe(); calc(); });
 try{ const cv=localStorage.getItem('clamp'); if(cv) $('clamp').value=cv; }catch(e){}
 document.querySelectorAll('#strat button').forEach(b=>b.addEventListener('click',()=>{
   if(b.disabled) return;
-  setStrat(b.dataset.v); recApAe(); calc();
+  setStrat(b.dataset.v); if(!manualApAe) recApAe(); calc();
 }));
-$('dia').addEventListener('input',()=>{ recApAe(); calc(); });
-$('resetApAe').addEventListener('click',()=>{ recApAe(); calc(); });
+$('dia').addEventListener('input',()=>{ if(!manualApAe) recApAe(); calc(); });
+['ap','ae'].forEach(id=>$(id).addEventListener('input',()=>{ manualApAe=true; }));
+
+$('resetApAe').addEventListener('click',()=>{ manualApAe=false; recApAe(); calc(); });
 initFeedToggle('fzMan', ()=>calc());
 $('resetMan').addEventListener('click',()=>{ $('sMan').value=''; $('fzMan').value=''; calc(); });
 ['z','ld','ap','ae','nMax','pS1','pS2','vfMax','eta','sMan','fzMan'].forEach(id=>{ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
@@ -2051,13 +2054,22 @@ barUpd();
 </script>
 <script>
 // параметры станка запоминаются в этом браузере
-['nMax','nWork'].forEach(id=>{
+const MACHINE_FIELDS=['nMax','nWork','machineName','pS1','pS2','vfMax','vfWork','eta','ratedRpm','maxTorque','vcScale','fzScale','toolCutLen'];
+let machineQueued=false;
+function updateAllModes(){
+  if(machineQueued) return; machineQueued=true;
+  requestAnimationFrame(()=>{
+    machineQueued=false;
+    try{ calc(); dCalc(); tCalc(); kCalc(); qCalc(); cCalc(); bCalc(); }catch(e){ console.error('Ошибка пересчёта профиля',e); }
+  });
+}
+MACHINE_FIELDS.forEach(id=>{
   const el=$(id);
-  try{ const v=localStorage.getItem('m_'+id); if(v){ el.value=v; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); } }catch(e){}
-  el.addEventListener('input',()=>{ try{ localStorage.setItem('m_'+id, el.value); }catch(e){} });
+  try{ const v=localStorage.getItem('m_'+id); if(v!==null){ el.value=v; } }catch(e){}
+  el.addEventListener('input',()=>{ try{ localStorage.setItem('m_'+id,el.value); }catch(e){} updateAllModes(); });
+  el.addEventListener('change',updateAllModes);
 });
-// пересчёт активной вкладки при смене предела оборотов
-['nMax','nWork'].forEach(id=>$(id).addEventListener('input',()=>{ try{ const b=document.querySelector('#mode button[aria-pressed="true"]'); setMode(b?b.dataset.v:'mill'); }catch(e){} }));
+updateAllModes();
 </script>
 <script>
 // ===== S и F правятся прямо в результате =====
