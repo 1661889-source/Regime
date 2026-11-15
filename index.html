@@ -1107,6 +1107,7 @@ function machineWarnings(W,n,F,P,opts={}){
   if(F>vfMax+0.1) W.push(['bad',`F ${nf(F)} выше максимума станка ${nf(vfMax)} — заданная fz/f сохранена.`]);
   else if(vfWork>0 && F>vfWork) W.push(['',`F ${nf(F)} выше заданной рабочей ${nf(vfWork)}.`]);
   const s1=machinePower(n), s2=num('pS2')||11;
+  if(num('pS1')>0 && s2<num('pS1')) W.push(['bad','В профиле станка S2 меньше S1: проверьте паспортные параметры.']);
   if(P>0 && P>s2) W.push(['bad',`Нужна мощность ${nf(P,1)} кВт, выше S2 ${nf(s2,1)} кВт.`]);
   else if(P>0 && P>s1) W.push(['',`Требуется ${nf(P,1)} кВт, доступно S1 ≈${nf(s1,1)} кВт на ${nf(n)} об/мин.`]);
   const len=num('toolCutLen');
@@ -1238,8 +1239,9 @@ function calc(){
   const phi = (t.idx && t.face) ? 2*Math.asin(aeR) : Math.acos(1-2*aeR);
   const hm = fzFact*sinK*(2*aeR)/phi;
   const kc = (num('kcOverride')||m.kc)*Math.pow(Math.max(hm,0.005),-(num('mcOverride')||m.mc));
-  const Q = ap*ae*F/1000;
-  const P = ap*ae*F*kc/(60e6*eta);
+  const aeEffective=Math.min(ae,D);
+  const Q = ap*aeEffective*F/1000;
+  const P = ap*aeEffective*F*kc/(60e6*eta);
 
   $('oN').textContent=nf(n); $('oF').textContent=nf(F);
   $('oVc').textContent=nf(vcFact); $('oFz').textContent=fzFact.toFixed(3);
