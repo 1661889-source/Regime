@@ -1315,8 +1315,16 @@ function powerBar(P, barId, pillId, n){
   $(pillId).innerHTML=`<span class="pill" style="color:${col}">${pill} · ${nf(load)}%</span>`;
   return {pS1:machinePower(n),pS2};
 }
+// Нельзя копировать G-код с явно невозможными пределами станка.
+function codeSafety(id,n,F,invalid=false){
+  const el=$(id), maxN=num('nMax')||12000, maxF=num('vfMax')||10000;
+  const bad=invalid || n>maxN+0.1 || F>maxF+0.1 || !(n>0) || !(F>0);
+  el.dataset.unsafe=bad?'true':'false';
+  if(bad) el.textContent='(ОШИБКА: предел станка или геометрия. КОПИРОВАНИЕ ЗАБЛОКИРОВАНО)\\n'+el.textContent;
+}
 function copyBtn(btnId, preId){
   $(btnId).addEventListener('click',()=>{
+    if($(preId).dataset.unsafe==='true'){ alert('Некорректный режим или превышен предел станка. Исправьте параметры перед копированием G-кода.'); return; }
     const txt=$(preId).textContent, b=$(btnId);
     const done=()=>{ b.textContent='Скопировано'; setTimeout(()=>b.textContent='Копировать',1500); };
     const fallback=()=>{ const r=document.createRange(); r.selectNodeContents($(preId)); const s=getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent='Выделено — Ctrl+C'; setTimeout(()=>b.textContent='Копировать',2000); };
@@ -1357,7 +1365,7 @@ function dCalc(){
   else if(type==='hssco'){ vc=d.hss*(c==='M'||c==='M2'?1.4:1.25); f=hssF; }
   else if(type==='udrill'){ vc=d.uv; f=d.uf; if(D<14) W.push(['bad','Корпусные сверла начинаются примерно с Ø14.']); }
   else { vc=d.vcE*0.8; f=(c==='AL'||c==='BR'?0.08:0.06)*Math.min(Math.max(D/10,0.6),1.5); }
-  vc*=gk[0]; f*=gk[1];
+  vc=scaledVc(vc*gk[0]); f=scaledFeed(f*gk[1]);
 
   // глубина и цикл
   let k=1;
@@ -1376,10 +1384,10 @@ function dCalc(){
   let n=vc*1000/(Math.PI*D), capped=false; if(n>nLim){ n=nLim; capped=true; }
   const nAuto=n, fAuto=f;
   const sM=num('dSMan');
-  if(sM>0) n=Math.min(sM,nMax);
+  if(sM>0) n=sM;
   const fM=manFeed('dFMan', n, fAuto); if(fM>0) f=fM;
   $('dSMan').placeholder='авто '+nf(nAuto);
-  let F=n*f, fcap=false; if(F>vfMax){ F=vfMax; fcap=true; }
+  let F=n*f, fcap=F>vfMax;
   const vcF=n*Math.PI*D/1000, fF=F/n;
 
   // мощность, момент
@@ -1399,7 +1407,8 @@ function dCalc(){
 
   const zEnd = -(L+tip);
   let line = `${cyc} X0. Y0. Z${f3(zEnd)} R2.` + (q>0?` Q${f3(q)}`:'') + ` F${Math.round(F)}.`;
-  $('dCode').textContent = `S${Math.round(n)} M03\n` + line + `\nG80`;
+  $('dCode').textContent = `(ПРОВЕРИТЬ G94, ОТВОДЫ, СТОЙКУ И СОЖ)\nS${Math.round(n)} M03\n` + line + `\nG80`;
+  codeSafety('dCode',n,F);
 
   if(sM>0) W.unshift(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)}.`]);
   if(fM>0) W.unshift(['info',`Подача задана вручную: ${fM.toFixed(3)} вместо ${fAuto.toFixed(3)} мм/об.`]);
@@ -1412,6 +1421,7 @@ function dCalc(){
   if((type==='cI'||type==='cE') && c==='AL') W.push(['info','Сверло для алюминия даст подачу в 2–3 раза выше.']);
   if($('dGrade').value==='cn' && type==='cI') W.push(['','Китайские сверла с внутренней СОЖ встречаются редко — проверьте, что каналы есть.']);
   if(type!=='spot' && type!=='udrill' && type!=='cI' && ld<=3 && !DUCTILE[c]) W.push(['info','Короткая стружка — цикл без вывода.']);
+  machineWarnings(W,n,F,P);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
   $('dWarns').innerHTML=W.map(w=>`<div class="${w[0]}">${w[1]}</div>`).join('');
 }
@@ -1462,7 +1472,7 @@ function tCalc(){
   let n=vc*1000/(Math.PI*d), capped=false; if(n>nLim){ n=nLim; capped=true; }
   const nAuto=n, fzAuto=fz, pAuto=passes;
   const sM=num('tSMan'), pM=Math.round(num('tPassMan'));
-  if(sM>0) n=Math.min(sM,nMax); if(pM>0) passes=pM;
+  if(sM>0) n=sM; if(pM>0) passes=pM;
   const kC = tKind==='in' ? (D-d)/D : (D+d)/D;
   const fzM=manFeed('tFzMan', n*z*kC, fzAuto); if(fzM>0) fz=fzM;
   $('tSMan').placeholder='авто '+nf(nAuto); $('tPassMan').placeholder='авто '+pAuto;
@@ -1728,7 +1738,7 @@ function kCalc(){
   const g=$('kGrade').value, gk = g==='cn'?0.75 : g==='mid'?0.9 : 1;
   if(vc===0){ W.push(['bad','Раскатник по этому материалу нельзя — он не течёт, а крошится. Возьмите нарезной метчик.']); vc=TAPV[c][0]; }
   if(type==='form' && m.id==='ls59') W.push(['bad','ЛС59-1 не раскатывают — свинцовая латунь крошится.']);
-  vc*=gk;
+  vc=scaledVc(vc*gk);
   const ld=L/D; let k=1;
   if(kHole==='blind') k*=0.9;
   if(ld>3) k*=0.6; else if(ld>2) k*=0.8;
@@ -1750,11 +1760,14 @@ function kCalc(){
   $('kDepth').textContent=nf(depth,1); $('kM').textContent=nf(Mc,1); $('kP2').textContent=nf(Pw,2);
   $('kProf').textContent = type==='form' ? '~65%' : '~75%';
   $('kCode').textContent = [
+    `(ШАБЛОН FANUC: ПРОВЕРИТЬ M29/G84/G94, ОТВОД И НАПРАВЛЕНИЕ)`,
     `(M${String(D).replace('.',',')}x${String(P).replace('.',',')}, ${$('kType').selectedOptions[0].text.toUpperCase()})`,
+    `G94`,
     `M29 S${Math.round(n)}`,
     `G84 X__ Y__ Z${f3(-L)} R3. F${f3(F)}`,
     `G80`
   ].join('\n');
+  codeSafety('kCode',n,F,type==='point'&&kHole==='blind'||type==='form'&&TAPV[c][TAPI[type]]===0);
   if(type==='point' && kHole==='blind') W.push(['bad','Шахматный метчик гонит стружку вперёд — в глухое отверстие не годится. Нужен с винтовой канавкой.']);
   if(type==='spiral' && kHole==='through') W.push(['info','Для сквозного быстрее и надёжнее шахматный метчик.']);
   if(k<1) W.push(['',`Поправка на ${kHole==='blind'?'глухое отверстие':''}${kHole==='blind'&&ld>2?' и ':''}${ld>2?'глубину '+nf(ld,1)+'×D':''}: Vc ×${nf(k,2)}.`]);
@@ -1763,6 +1776,7 @@ function kCalc(){
   if(g==='cn' && (c==='M'||c==='M2'||c==='S1'||c==='S2')) W.push(['bad','Китайский метчик по нержавейке и титану — высокий риск слома в отверстии.']);
   if(type==='carbide') W.push(['info','Твёрдосплавный метчик — только жёсткое нарезание, без патрона-компенсатора с большим ходом. Хрупкий на перекосе.']);
   if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nA)}.`]);
+  machineWarnings(W,n,F,Pw);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
   $('kWarns').innerHTML=warnsHTML(W);
 }
@@ -1815,7 +1829,7 @@ function qCalc(){
   const nLim=nRec($('qGrade').value==='cn', qOp==='bore'?num('qLD'):0);
   let n=vc*1000/(Math.PI*D); if(n>nLim){ n=nLim; W.push(['info',`Обороты ${nf(nLim)}.`+recNote(nLim)]); }
   const nA=n, fA=f, sM=num('qSMan');
-  if(sM>0) n=Math.min(sM,nMax);
+  if(sM>0) n=sM;
   const fM=manFeed('qFMan', n, fA); if(fM>0) f=fM;
   $('qSMan').placeholder='авто '+nf(nA);
   const F=n*f, vcF=n*Math.PI*D/1000;
@@ -1824,8 +1838,10 @@ function qCalc(){
   if(qOp==='ream') code=[`(РАЗВЁРТКА Ø${f3(D)} H7)`,`S${Math.round(n)} M03`,`G85 X__ Y__ Z${f3(-L)} R2. F${Math.round(F)}.`,`G80`];
   else if($('qbType').value==='fine') code=[`(ЧИСТОВАЯ РАСТОЧКА Ø${f3(D)})`,`S${Math.round(n)} M03`,`G76 X__ Y__ Z${f3(-L)} R2. Q0.1 F${Math.round(F)}.`,`G80`,`(Q — ОТВОД ОТ СТЕНКИ ПОСЛЕ ОРИЕНТАЦИИ; НАПРАВЛЕНИЕ — ПАРАМ. 5101#4/#5)`];
   else code=[`(ЧЕРНОВАЯ РАСТОЧКА Ø${f3(D)})`,`S${Math.round(n)} M03`,`G85 X__ Y__ Z${f3(-L)} R2. F${Math.round(F)}.`,`G80`];
-  $('qCode').textContent=code.join('\n');
+  $('qCode').textContent='(ПРОВЕРИТЬ G85/G76 И ЦИКЛЫ В РУКОВОДСТВЕ СТОЙКИ)\n'+code.join('\n');
+  codeSafety('qCode',n,F);
   if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nA)}.`]);
+  machineWarnings(W,n,F,0);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
   $('qWarns').innerHTML=warnsHTML(W);
 }
