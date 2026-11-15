@@ -2029,7 +2029,7 @@ Object.values(EDIT).forEach(cfg=>{
     const perBtn=document.querySelector('#'+fId+'U button[data-v="per"]');
     if(perBtn) document.querySelectorAll('#'+fId+'U button').forEach(b=>b.setAttribute('aria-pressed',b===perBtn?'true':'false'));
     feed.value=String(+per.toFixed(6));
-  });
+  }, true); // capture: сохраняем прежнюю fz до перерасчёта по новым S
 });
 Object.values(EDIT).forEach(cfg=>{
   Object.entries(cfg).forEach(([key,[vId,manId]])=>{
