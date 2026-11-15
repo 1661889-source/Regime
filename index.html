@@ -301,7 +301,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
             <option value="0.4">Вакуум / магнит</option>
             <option value="0.3">Скотч + клей</option>
           </select>
-          <div class="hint">Фрезерование: снижает рекомендуемые ap/ae. Остальные операции: снижает только автоматические S и F, сохраняя fz/шаг; ручные настройки не меняет. Коэффициенты ориентировочные, не гарантируют безопасное удержание.</div>
+          <div class="hint">При слабом закреплении снижает автоматические S/F, сохраняя подачу на зуб или шаг. При фрезеровании дополнительно уменьшает рекомендуемые ap/ae. Ручные значения сохраняются. Это эвристика, а не расчёт силы удержания.</div>
         </div>
         <div class="row3">
           <div><label class="label" for="dia">Ø фрезы, мм</label><input id="dia" type="number" value="10" min="1" max="200" step="0.5"></div>
@@ -1224,6 +1224,7 @@ function calc(){
   let n = vc*1000/(Math.PI*D), capped=false;
   const nLim=nRec(g[0].startsWith('cn'), ld);
   if(n>nLim){ n=nLim; capped=true; }
+  n=fixtureAutoN(n);
   const nAuto = n;
   const sMan = num('sMan');
   if(sMan>0){ n=sMan; capped = sMan>nMax; }
@@ -1319,7 +1320,7 @@ function calc(){
   const kzv=parseFloat($('clamp').value)||1;
   if(manualApAe && (ap>rec.ap*1.05 || ae>rec.ae*1.05))
     W.push([kzv<0.6?'bad':'',`Ручные ap/ae (${nf(ap,2)} / ${nf(ae,2)} мм) выше рекомендаций (${nf(rec.ap,2)} / ${nf(rec.ae,2)} мм). Проверьте закрепление; значения сохранены.`]);
-  if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${$('clamp').selectedOptions[0].text}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}. fz не снижать — фреза начнёт тереть и вибрировать сильнее. Ручной ввод ap/ae не ограничивается — следите сами.`]);
+  if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${escapeText($('clamp').selectedOptions[0].text)}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}, автоматические S/F также снижены без изменения fz. Ручные параметры сохраняются; безопасное удержание не подтверждено.`]);
   machineWarnings(W,n,F,P,{D,ap,ae,face:t.idx&&t.face});
   if(hss && !(num('catVc')>0 && num('catFz')>0)) W.push(['info','Для HSS применяется отдельная осторожная стартовая таблица; уточняйте по серии фрезы, охлаждению и материалу.']);
   if(num('catVc')>0||num('catFz')>0) W.push(['info',`Каталог ${escapeText($('toolMaker').value||'производитель не указан')} ${escapeText($('toolSeries').value||'')}: исходные Vc/fz с поправками станка.`]);
