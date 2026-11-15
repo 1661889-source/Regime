@@ -1134,6 +1134,7 @@ function recApAe(){
   } else {
     const r=T[m.t], i = strat==='rough'?0 : strat==='hsm'?2 : 4;
     ap = r[i]*D; ae = r[i+1]*D;
+    if($('grade').value==='hss'){ ap=Math.min(ap,strat==='hsm'?D:0.5*D); ae=Math.min(ae,(strat==='rough'?0.25:0.08)*D); }
     if(strat==='finish'){ ae = Math.min(Math.max(ae,0.1),0.5); }
   }
   const kz=parseFloat($('clamp').value)||1;
@@ -1156,14 +1157,16 @@ function calc(){
   const aeR = Math.min(ae/D,1);
 
   // Vc
-  let vcTab = t.idx ? m.vc.rough*IDX_VC[m.iso]*(strat==='finish'?1.15:1) : m.vc[strat];
-  let vc = vcTab*(1+k.vc/100)*gk[0];
+  const hss = g[0]==='hss' && !t.idx, hssData=HSS_BASE[m.iso];
+  const vcRef={P:180,M:110,K:150,N:600,S:90}[m.iso];
+  const vcTab = hss ? hssData[strat==='rough'?0:strat==='hsm'?1:2]*(m.vc.rough/vcRef) : t.idx ? m.vc.rough*IDX_VC[m.iso]*(strat==='finish'?1.15:1) : m.vc[strat];
+  let vc = scaledVc(vcTab*(1+k.vc/100)*(hss?1:gk[0]));
   let n = vc*1000/(Math.PI*D), capped=false;
   const nLim=nRec(g[0].startsWith('cn'), ld);
   if(n>nLim){ n=nLim; capped=true; }
   const nAuto = n;
   const sMan = num('sMan');
-  if(sMan>0){ n=Math.min(sMan,nMax); capped = sMan>nMax; }
+  if(sMan>0){ n=sMan; capped = sMan>nMax; }
   const vcFact = n*Math.PI*D/1000;
 
   // fz
@@ -1190,7 +1193,8 @@ function calc(){
       fz = m.f50*ds*Math.min(thin*kAx, 2.8);
     }
   }
-  fz *= (1+k.fz/100)*gk[1];
+  if(hss) fz=hssData[3]*Math.pow(Math.min(Math.max(D,2),25)/10,0.65)*Math.min(thin,1.3)*kAx;
+  fz = scaledFeed(fz*(1+k.fz/100)*(hss?1:gk[1]));
   let ldf = ldFactor(ld); if(ldf<1 && ap/D<0.5) ldf = 1-(1-ldf)*0.6; fz*=ldf;
   const fzAuto = fz;
   const fzMan = manFeed('fzMan', n*z, fzAuto);
@@ -1198,7 +1202,7 @@ function calc(){
   $('sMan').placeholder = 'авто ' + nf(nAuto);
 
   let F = n*z*fz, fcap=false;
-  if(F>vfMax){ F=vfMax; fcap=true; }
+  if(F>vfMax){ fcap=true; }
   const fzFact = F/(n*z);
 
   // стружка и мощность
@@ -1215,26 +1219,26 @@ function calc(){
   $('oAe').textContent=nf(ae,2); $('oAeD').textContent=`мм · ${nf(aeR*100,0)}% D`;
   $('oHm').textContent=hm.toFixed(3);
   $('oP').textContent=nf(P,1);
-  const load=P/pS1*100;
+  const load=P/machinePower(n)*100;
   const bar=$('oBar'); bar.style.width=Math.min(load,100)+'%';
   let col='var(--ok)', pill='В норме';
   if(P>pS2){ col='var(--bad)'; pill='Перегруз'; }
-  else if(P>pS1){ col='var(--warn)'; pill='Только S2, ≤30 мин'; }
+  else if(P>machinePower(n)){ col='var(--warn)'; pill='Выше S1'; }
   else if(load>80){ col='var(--warn)'; pill='На пределе'; }
   bar.style.background=col;
   $('oPill').innerHTML=`<span class="pill" style="color:${col}">${pill}</span>`;
   $('oPLoad').textContent=`${nf(load)}% от мощности`;
-  $('oPLim').textContent=`предел ${nf(pS2,1)} кВт`;
+  $('oPLim').textContent=`S1 ${nf(machinePower(n),1)} / S2 ${nf(pS2,1)} кВт`;
 
   // предупреждения
   if(sMan>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)} об/мин. Vc = ${nf(vcFact)} м/мин.`]);
   if(fzMan>0) W.push(['info',`fz задана вручную: ${fzMan.toFixed(3)} вместо ${fzAuto.toFixed(3)} мм/зуб.`]);
-  if(sMan>nMax) W.push(['bad',`Станок не даст больше ${nf(nMax)} об/мин — взято ${nf(nMax)}.`]);
+  if(sMan>nMax) W.push(['bad',`S ${nf(sMan)} превышает паспортный максимум станка ${nf(nMax)}. Не запускать.`]);
   else if(capped && !(sMan>0)) W.push(['info',`Обороты ${nf(nLim)}: табличная Vc ${nf(vc)} м/мин на Ø${D} не достигается. Добирайте производительность подачей и ap/ae.`+recNote(nLim)]);
-  if(fcap) W.push(['bad',`Подача упёрлась в ${nf(vfMax)} мм/мин станка — fz фактически ${fzFact.toFixed(3)}. Можно увеличить ae или ap.`]);
+  if(fcap) W.push(['bad',`Подача F ${nf(F)} превышает максимум станка ${nf(vfMax)}. fz сохранена; для работы снизьте S или fz.`]);
   const fitBtn=` <button type="button" class="btn fitP" data-k="${(pS1*0.9/P).toFixed(4)}">Подогнать ap под ${nf(pS1*0.9,1)} кВт</button>`;
   if(P>pS2) W.push(['bad',`Не хватит мощности: нужно ${nf(P,1)} кВт. Уменьшите ae или ap примерно в ${nf(P/pS1,1)} раза.`+fitBtn]);
-  else if(P>pS1) W.push(['',`Выше длительной мощности S1 — допустимо только в коротких проходах.`+fitBtn]);
+  else if(P>machinePower(n)) W.push(['',`Выше доступной мощности S1 при текущих оборотах. Уменьшите ap или ae.`+fitBtn]);
   if(t.idx && ap>t.apMax) W.push(['bad',`ap ${nf(ap,1)} мм больше допустимого для пластины (${nf(t.apMax,1)} мм).`]);
   if(t.idx && kap>1.05 && !(fzMan>0)) W.push(['info',`Угол в плане: подача поднята ×${nf(kap,2)} (fz = hex / sin κ).`]);
   if(t.idx && t.kappa===0 && ap>2.5) W.push(['',`На круглой пластине выгоднее ap ≤ 2,5 мм: подача растёт за счёт утонения стружки.`]);
@@ -1251,6 +1255,8 @@ function calc(){
   if(g[0].startsWith('cn')) W.push(['',`Китайский инструмент: проверьте биение и начните новую партию с расчётных режимов, поднимайте по факту.`]);
   const kzv=parseFloat($('clamp').value)||1;
   if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${$('clamp').selectedOptions[0].text}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}. fz не снижать — фреза начнёт тереть и вибрировать сильнее. Ручной ввод ap/ae не ограничивается — следите сами.`]);
+  machineWarnings(W,n,F,P,{D,ap,ae,face:t.idx&&t.face});
+  if(hss) W.push(['info','Для HSS применяется отдельная осторожная стартовая таблица; уточняйте по серии фрезы, охлаждению и материалу.']);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
   $('warns').innerHTML=W.map(w=>`<div class="${w[0]}">${w[1]}</div>`).join('');
 
@@ -1302,12 +1308,13 @@ sel.addEventListener('change',()=>{ dCalc(); tCalc(); });
 
 function powerBar(P, barId, pillId){
   const pS1=num('pS1')||7.5, pS2=num('pS2')||11;
-  const load=P/pS1*100, bar=$(barId);
+  const n=pn(barId==='dBar'?'dN':barId==='kBar'?'kN':'oN') || num('nWork') || 12000;
+  const load=P/machinePower(n)*100, bar=$(barId);
   let col='var(--ok)', pill='В норме';
-  if(P>pS2){ col='var(--bad)'; pill='Перегруз'; } else if(P>pS1){ col='var(--warn)'; pill='Только S2, ≤30 мин'; } else if(load>80){ col='var(--warn)'; pill='На пределе'; }
+  if(P>pS2){ col='var(--bad)'; pill='Перегруз'; } else if(P>machinePower(n)){ col='var(--warn)'; pill='Выше S1'; } else if(load>80){ col='var(--warn)'; pill='На пределе'; }
   bar.style.width=Math.min(load,100)+'%'; bar.style.background=col;
   $(pillId).innerHTML=`<span class="pill" style="color:${col}">${pill} · ${nf(load)}%</span>`;
-  return {pS1,pS2};
+  return {pS1:machinePower(n),pS2};
 }
 function copyBtn(btnId, preId){
   $(btnId).addEventListener('click',()=>{
