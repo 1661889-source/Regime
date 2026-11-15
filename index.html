@@ -798,6 +798,9 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
             <div><label class="label" for="bAp">ap, мм</label><input id="bAp" type="number" step="0.05" min="0.01" value="0.3"></div>
             <div><label class="label" for="bSlope">Наклон пов-сти, °</label><input id="bSlope" type="number" step="5" min="0" max="90" value="0"></div>
             <div><label class="label" for="bH">Гребешок h, мкм</label><input id="bH" type="number" step="1" min="0.5" value="5"></div>
+            <div><label class="label" for="bSMan">Обороты S вручную</label><input id="bSMan" type="number" step="100" min="0" placeholder="авто"></div>
+            <div><div class="flab"><label class="label" for="bFzMan" style="margin:0">Подача вручную</label><div class="seg mini" id="bFzManU"><button type="button" data-v="per" aria-pressed="true">fz, мм/зуб</button><button type="button" data-v="F" aria-pressed="false">F, мм/мин</button></div></div><input id="bFzMan" type="number" step="0.005" min="0" placeholder="авто"></div>
+            <div><button id="bReset" type="button" class="btn">Вернуть авто S/fz</button></div>
           </div>
           <span class="hint">Наклон 0° — пологая поверхность, режет почти центр шара (скорость там ноль). На 45° и круче рабочий Ø большой. Если можно — наклоняйте деталь или обрабатывайте с подъёмом по склону.</span>
         </div>
@@ -1639,12 +1642,13 @@ function cCalc(){
     vc = (t==='ci' ? m.vc.finish*0.9 : m.vc.finish*0.85) * gk[0];
     fz = (t==='ci' ? 0.08 : 0.04*Math.pow(Math.min(Math.max(Dmax,3),20)/10,0.8)) * C_FZK[c] * gk[1];
     if(cOp==='deburr') fz*=1.2;
+    vc=scaledVc(vc); fz=scaledFeed(fz);
     let nA = vc*1000/(Math.PI*Math.max(De,0.5)), capped=false; if(nA>nLim){ nA=nLim; capped=true; }
     const sM=num('cSMan');
-    n = sM>0 ? Math.min(sM,nMax) : nA;
+    n = sM>0 ? sM : nA;
     const fzA=fz, fM=manFeed('cFMan', n*z, fzA); if(fM>0) fz=fM;
     $('cSMan').placeholder='авто '+nf(nA);
-    F=n*z*fz; if(F>vfMax){ F=vfMax; W.push(['bad',`Подача упёрлась в ${nf(vfMax)} мм/мин.`]); }
+    F=n*z*fz; if(F>vfMax) W.push(['bad',`F ${nf(F)} выше ${nf(vfMax)} мм/мин. Заданная fz сохранена.`]);
     vc = n*Math.PI*De/1000;
     fShow=fz.toFixed(3); fUnit='мм/зуб'; fKey='fz';
     $('cXK').textContent='Коррекция D'; $('cX').textContent=nf(r,3); $('cXU').textContent='мм, радиус в корректор';
@@ -1676,9 +1680,10 @@ function cCalc(){
     else if(t==='cs'){ vc=CS_VC[c]*3*gk[0]; }
     else { vc=CS_VC[c]*gk[0]; }
     let f = (0.05 + 0.003*Dk) * C_FZK[c] * gk[1] * (t==='hss1'?1.2:1) * (t==='spot'?0.8:1);
+    vc=scaledVc(vc); f=scaledFeed(f);
     let nA = vc*1000/(Math.PI*Dk), capped=false; if(nA>nLim){ nA=nLim; capped=true; }
     const sM=num('cSMan');
-    n = sM>0 ? Math.min(sM,nMax) : nA;
+    n = sM>0 ? sM : nA;
     const fA=f, fM=manFeed('cFMan', n, fA); if(fM>0) f=fM;
     $('cSMan').placeholder='авто '+nf(nA);
     F=n*f; vc=n*Math.PI*Dk/1000;
@@ -1703,8 +1708,10 @@ function cCalc(){
   $('cVc').textContent=nf(vc); $('cVcU').textContent = 'м/мин, на Ø '+nf(De,1);
   $('cFzK').textContent=fKey; $('cFz').textContent=fShow; $('cFzU').textContent=fUnit;
   $('cDe').textContent=nf(De,2); $('cZ').textContent=nf(Z,3);
-  $('cCode').textContent=code.join('\n');
+  $('cCode').textContent='(ШАБЛОН: ПРОВЕРИТЬ СТОЙКУ, G94 И БЕЗОПАСНЫЕ ПОДВОДЫ)\n'+code.join('\n');
+  codeSafety('cCode',n,F,Dmax<De || !(De>0));
   if($('cGrade').value==='cn') W.push(['','Китайский инструмент: проверьте биение, на фасках оно сразу видно по неровной ширине фаски.']);
+  machineWarnings(W,n,F,0);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
   $('cWarns').innerHTML=W.map(w=>`<div class="${w[0]}">${w[1]}</div>`).join('');
 }
@@ -1842,6 +1849,7 @@ function qCalc(){
     if(!fine) W.push(['info','Черновая двухрезцовая: подача 0,3 мм/об — это 0,15 на каждый резец.']);
     if(ld>4 && ld<=6) W.push(['',`Вылет ${nf(ld,1)}×D: Vc ×0,8, f ×0,7.`]);
   }
+  vc=scaledVc(vc); f=scaledFeed(f);
   const nLim=nRec($('qGrade').value==='cn', qOp==='bore'?num('qLD'):0);
   let n=vc*1000/(Math.PI*D); if(n>nLim){ n=nLim; W.push(['info',`Обороты ${nf(nLim)}.`+recNote(nLim)]); }
   const nA=n, fA=f, sM=num('qSMan');
@@ -1878,20 +1886,24 @@ function bCalc(){
     const nMax=num('nMax')||12000;
     const ang=Math.min(Math.PI/2, sl*Math.PI/180 + Math.acos(1-2*Math.min(ap,D/2)/D));
     const De=D*Math.sin(ang);
-    const vc=m.vc.finish*gk[0];
+    const vc=scaledVc(m.vc.finish*gk[0]);
     const nLim=nRec($('bGrade').value==='cn', 0);
     let n=vc*1000/(Math.PI*Math.max(De,0.1)), capped=false; if(n>nLim){ n=nLim; capped=true; }
+    const nAuto=n; if(num('bSMan')>0) n=num('bSMan');
+    const fManual=manFeed('bFzMan',n*z,fz); if(fManual>0) fz=fManual;
     const thin=Math.min(D/Math.max(De,0.01),2.5);
-    const fz=m.ff*Math.pow(Math.min(Math.max(D,1),20)/10,0.8)*thin*gk[1];
+    let fz=scaledFeed(m.ff*Math.pow(Math.min(Math.max(D,1),20)/10,0.8)*thin*gk[1]);
     const F=n*z*fz, vcF=n*Math.PI*De/1000;
     const ae=2*Math.sqrt(h*(D-h));
     const hf=fz*fz/(4*D)*1000;
     $('bN').textContent=nf(n); $('bF').textContent=nf(F); $('bDe').textContent=nf(De,2); $('bVc').textContent=nf(vcF);
     $('bFz').textContent=fz.toFixed(3); $('bAe').textContent=nf(ae,3); $('bRa').textContent=nf(h*1000/4,2); $('bHf').textContent=nf(hf,2);
-    if(capped) W.push(['info',`Рабочий Ø ${nf(De,2)} мм — обороты ${nf(nLim)}, фактическая Vc ${nf(vcF)} м/мин ниже табличной ${nf(vc)}.`]);
+    if(capped && !(num('bSMan')>0)) W.push(['info',`Рабочий Ø ${nf(De,2)} мм — обороты ${nf(nLim)}, фактическая Vc ${nf(vcF)} м/мин ниже табличной ${nf(vc)}.`]);
     if(sl<10 && ap<0.1*D) W.push(['','Пологая поверхность и малая ap: режет почти центр шара, где скорость близка к нулю. Наклоните деталь на 10–15° или фрезеруйте с подъёмом.']);
     if(thin>1.05) W.push(['info',`Утонение стружки на малой глубине: fz поднята ×${nf(thin,2)}.`]);
     if(hf>num('bH')) W.push(['',`Гребешок от подачи (${nf(hf,1)} мкм) больше заданного — уменьшите fz.`]);
+    machineWarnings(W,n,F,0);
+    if(num('bSMan')>0) W.push(['info',`Обороты S заданы вручную: ${nf(n)}, авто ${nf(nAuto)}.`]);
     W.push(['info',`Шаг ${nf(ae,3)} мм даёт гребешок ${nf(h*1000,1)} мкм, Ra ≈ ${nf(h*1000/4,2)} мкм. Реально хуже в 1,5–2 раза из-за биения.`]);
   } else {
     const re=parseFloat($('rRe').value), raT=parseFloat($('rRa').value), proc=$('rProc').value, wip=$('rWiper').checked;
@@ -1912,8 +1924,10 @@ function bCalc(){
   }
   $('bWarns').innerHTML=warnsHTML(W);
 }
-['bD','bz','bGrade','bAp','bSlope','bH','rProc','rRe','rRa','rF','rWiper'].forEach(id=>{ $(id).addEventListener('input',bCalc); $(id).addEventListener('change',bCalc); });
+['bD','bz','bGrade','bAp','bSlope','bH','bSMan','bFzMan','rProc','rRe','rRa','rF','rWiper'].forEach(id=>{ $(id).addEventListener('input',bCalc); $(id).addEventListener('change',bCalc); });
 
+initFeedToggle('bFzMan',()=>bCalc());
+$('bReset').addEventListener('click',()=>{ $('bSMan').value=''; $('bFzMan').value=''; bCalc(); });
 // ===== Стойкость и расход =====
 // T по ISO P,M,K,N,S: [А, Б]; цены [А, Б]; переточки [А,Б]; цена переточки [А,Б]; n Тейлора; holes — стойкость в отверстиях
 const LIFE = {
