@@ -1168,7 +1168,10 @@ function recommendedApAe(){
     if(strat==='finish'){ ae = Math.min(Math.max(ae,0.1),0.5); }
   }
   const kz=parseFloat($('clamp').value)||1;
-  ap*=kz; if(kz<0.6) ae*=0.7;
+  const overhang=ldFactor(num('ld'));
+  ap*=kz*overhang;
+  if(kz<0.6) ae*=0.7;
+  if(overhang<=0.55) ae*=0.8;
   return {ap:+ap.toFixed(2), ae:+ae.toFixed(2)};
 }
 function recApAe(){
@@ -1282,7 +1285,7 @@ function calc(){
   if(t.idx && ap>t.apMax) W.push(['bad',`ap ${nf(ap,1)} мм больше допустимого для пластины (${nf(t.apMax,1)} мм).`]);
   if(t.idx && kap>1.05 && !(fzMan>0)) W.push(['info',`Угол в плане: подача поднята ×${nf(kap,2)} (fz = hex / sin κ).`]);
   if(t.idx && t.kappa===0 && ap>2.5) W.push(['',`На круглой пластине выгоднее ap ≤ 2,5 мм: подача растёт за счёт утонения стружки.`]);
-  if(ldf<1 && !(fzMan>0)) W.push(['',`Вылет ${ld}×D: fz снижена до ${nf(ldf*100)}%. ap тоже уменьшите, иначе вибрация.${t.idx?' На длинном вылете лучше высокоподачная.':' Для длинных вылетов лучше трохоида с малым ae.'}`]);
+  if(ldf<1 && !(fzMan>0)) W.push(['',`Вылет ${ld}×D: fz снижена до ${nf(ldf*100)}%. ${manualApAe?'Ручные ap/ae проверьте по рекомендациям.':'Рекомендуемая ap автоматически уменьшена.'}${t.idx?' На длинном вылете лучше высокоподачная.':' Для длинных вылетов лучше трохоида с малым ae.'}`]);
   if(Math.abs(kAx-1)>0.01 && !(fzMan>0)) W.push(['info',`Глубина ap ${t.idx?nf(ap,1)+' мм из '+nf(t.apMax,1):nf(ap/D,2)+'×D'}: подача на зуб ${kAx>1?'поднята':'снижена'} ×${nf(kAx,2)}${kAx>1?' — на малой глубине меньше нагрузка и прогиб фрезы':' — длинная кромка в работе, больше прогиб'}.`]);
   if(thin>1.05 && strat!=='finish' && !(fzMan>0)) W.push(['info',`ae ${nf(aeR*100)}% D — подача поднята на утонение стружки ×${nf(thin,2)}.`]);
   if(!t.idx && strat==='hsm' && ap>3*D) W.push(['',`ap больше 3×D — проверьте длину режущей части фрезы.`]);
@@ -1334,7 +1337,9 @@ $('resetApAe').addEventListener('click',()=>{ manualApAe=false; recApAe(); calc(
 ['kcOverride','mcOverride'].forEach(id=>$(id).addEventListener('input',()=>{calc(); dCalc(); kCalc();}));
 initFeedToggle('fzMan', ()=>calc());
 $('resetMan').addEventListener('click',()=>{ $('sMan').value=''; $('fzMan').value=''; calc(); });
-['z','ld','ap','ae','nMax','pS1','pS2','vfMax','eta','sMan','fzMan'].forEach(id=>{ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
+$('ld').addEventListener('input',()=>{ if(!manualApAe) recApAe(); calc(); });
+$('ld').addEventListener('change',()=>{ if(!manualApAe) recApAe(); calc(); });
+['z','ap','ae','nMax','pS1','pS2','vfMax','eta','sMan','fzMan'].forEach(id=>{ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
 
 fillGrades(); syncStratButtons(); onMat();
 </script>
@@ -2259,7 +2264,7 @@ Object.entries(EXP_TILE).forEach(([id,txt])=>{
 });
 const EXP_INPUT = {
   dia:'диаметр фрезы', z:'зубьев у фрезы или пластин в корпусе', ld:'длина от патрона до кончика / диаметр', ap:'глубина по Z за проход', ae:'ширина захвата сбоку',
-  clamp:'как держится деталь — от этого допустимая глубина', toolType:'монолит или корпус со сменными пластинами', grade:'класс инструмента меняет режимы',
+  clamp:'тип закрепления влияет на безопасные ap/ae и предупреждения', toolType:'монолит или корпус со сменными пластинами', grade:'класс инструмента меняет режимы',
   nMax:'больше станок не даёт', nWork:'до скольки считать рекомендуемые', mat:'марка обрабатываемого материала',
   dD:'диаметр сверла', dL:'глубина отверстия по полному диаметру', kL:'длина резьбы в отверстии', tL:'длина резьбы', td:'диаметр резьбофрезы', tz:'зубьев у резьбофрезы',
   qD:'диаметр готового отверстия', qL:'глубина обработки', qAp:'сколько снимаем на сторону', qLD:'длина расточной оправки / диаметр',
