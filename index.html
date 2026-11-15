@@ -1306,9 +1306,8 @@ function setMode(v){
 document.querySelectorAll('#mode button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.v)));
 sel.addEventListener('change',()=>{ dCalc(); tCalc(); });
 
-function powerBar(P, barId, pillId){
+function powerBar(P, barId, pillId, n){
   const pS1=num('pS1')||7.5, pS2=num('pS2')||11;
-  const n=pn(barId==='dBar'?'dN':barId==='kBar'?'kN':'oN') || num('nWork') || 12000;
   const load=P/machinePower(n)*100, bar=$(barId);
   let col='var(--ok)', pill='В норме';
   if(P>pS2){ col='var(--bad)'; pill='Перегруз'; } else if(P>machinePower(n)){ col='var(--warn)'; pill='Выше S1'; } else if(load>80){ col='var(--warn)'; pill='На пределе'; }
@@ -1396,7 +1395,7 @@ function dCalc(){
   $('dCyc').textContent=cyc; $('dCycU').textContent = q>0 ? `Q = ${nf(q,1)} мм` : 'без вывода';
   $('dTip').textContent=nf(tip,2);
   $('dP').textContent=nf(P,1);
-  const {pS1,pS2}=powerBar(P,'dBar','dPill');
+  const {pS1,pS2}=powerBar(P,'dBar','dPill',n);
 
   const zEnd = -(L+tip);
   let line = `${cyc} X0. Y0. Z${f3(zEnd)} R2.` + (q>0?` Q${f3(q)}`:'') + ` F${Math.round(F)}.`;
