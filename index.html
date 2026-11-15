@@ -1092,6 +1092,13 @@ function nRec(cn, ld){
 function recNote(nLim){ const nMax=num('nMax')||12000; return nLim<nMax ? ` Рекомендуемые обороты ${nf(nLim)} (${recWhy}). Станок даёт до ${nf(nMax)} — если нет вибрации, поднимите вручную в плитке «Обороты S».` : ''; }
 // Допустимая непрерывная мощность: если паспортной кривой нет, возвращаем заданную S1.
 function escapeText(v){return String(v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+// Некорректный ввод никогда не оставляет прежние результаты или копируемый G-код.
+function invalidateResult(ids, codeId, warnsId, message){
+  ids.forEach(id=>{ const el=$(id); if(el) el.textContent='—'; });
+  if(codeId){ const el=$(codeId); el.textContent='(ОШИБКА ВВОДА: исправьте параметры до генерации G-кода)';
+    el.dataset.unsafe='true'; }
+  if(warnsId) $(warnsId).innerHTML='<div class="bad">'+escapeText(message||'Параметры должны быть положительными. Исправьте ввод.')+'</div>';
+}
 function machinePower(n){
   let s1=num('pS1')||7.5;
   const rated=num('ratedRpm'), torque=num('maxTorque');
@@ -1193,7 +1200,10 @@ function calc(){
   const nMax=num('nMax')||12000, pS1=num('pS1')||7.5, pS2=num('pS2')||11, vfMax=num('vfMax')||10000, eta=num('eta')||0.8;
   const k={vc:0, fz:0};
   const W=[];
-  if(D<=0||z<=0||ap<=0||ae<=0){ return; }
+  if(D<=0||z<=0||ap<=0||ae<=0){
+    invalidateResult(['oN','oF','oVc','oFz','oQ','oTime','oAp','oAe','oHm','oP'],null,'warns','Проверьте диаметр, число зубьев, глубину ap и ширину ae.');
+    $('oBar').style.width='0%'; $('oPill').textContent=''; $('oPLoad').textContent=''; return;
+  }
   const aeR = Math.min(ae/D,1);
 
   // Vc
@@ -1406,7 +1416,10 @@ const POINT = {cI:140,cE:140,cAl:140,hss:118,hssco:118,udrill:180,spot:90};
 function dCalc(){
   const m=mat(); if(!m) return;
   const c=SUBCAT[m.id], d=DR[c], type=$('dType').value, gk=GRADE_K[$('dGrade').value];
-  const D=num('dD'), L=num('dL'); if(D<=0||L<=0) return;
+  const D=num('dD'), L=num('dL'); if(D<=0||L<=0){
+    invalidateResult(['dN','dF','dVc','dFr','dLD','dM','dCyc','dTip','dP'],'dCode','dWarns','Введите положительные диаметр сверла и глубину.');
+    $('dBar').style.width='0%'; $('dPill').textContent=''; return;
+  }
   const nMax=num('nMax')||12000, vfMax=num('vfMax')||10000, eta=num('eta')||0.8;
   const ld=L/D, W=[];
   let vc, f, cyc='G81', q=0;
@@ -1515,7 +1528,9 @@ function tCalc(){
   const m=mat(); if(!m) return;
   const c=SUBCAT[m.id], tv=TV[c], type=$('tType').value, gk={prem:[1,1],mid:[0.9,0.9],cn:[0.7,0.7]}[$('tGrade').value];
   const D=num('tD'), P=num('tP'), L=num('tL'), d=num('td'), z=Math.round(num('tz'));
-  if(D<=0||P<=0||L<=0||d<=0||z<=0) return;
+  if(D<=0||P<=0||L<=0||d<=0||z<=0){
+    invalidateResult(['tN','tF','tVc','tFz','tFp','tPass','tR','tFe'],'tCode','tWarns','Проверьте размеры резьбы, шаг и геометрию резьбофрезы.'); return;
+  }
   const nMax=num('nMax')||12000, W=[];
   let vc=scaledVc(tv[0]*gk[0]*(type==='idx'?1.15:1));
   let fz=scaledFeed(tv[1]*Math.min(1,Math.max(0.3,d/12))*gk[1]*(type==='multi'?1:1.3));
@@ -1677,7 +1692,9 @@ function cCalc(){
   const Dmax=num('cDmax'), z=Math.round(num('cz'));
   const nMax=num('nMax')||12000, vfMax=num('vfMax')||10000, W=[];
   const nLim=nRec($('cGrade').value==='cn', 0);
-  if(Dmax<=0||z<=0) return;
+  if(Dmax<=0||z<=0){
+    invalidateResult(['cN','cF','cVc','cFz','cDe','cZ','cX','cY'],'cCode','cWarns','Проверьте диаметр и количество зубьев фасочного инструмента.'); return;
+  }
   let n, F, vc, fz, De, Z, code=[], fShow, fUnit, fKey;
 
   if(cOp!=='csink'){
@@ -1804,7 +1821,9 @@ function kFill(){ const v=$('kSize').value; if(v==='c') return; const t=TH[+v]; 
 function kCalc(){
   const m=mat(); if(!m) return;
   const c=SUBCAT[m.id], type=$('kType').value, D=num('kD'), P=num('kP'), L=num('kL');
-  if(D<=0||P<=0||L<=0) return;
+  if(D<=0||P<=0||L<=0){
+    invalidateResult(['kN','kF','kVc','kDrill','kDepth','kM','kP2','kProf'],'kCode','kWarns','Проверьте диаметр, шаг и глубину резьбы.'); return;
+  }
   const nMax=num('nMax')||12000, eta=num('eta')||0.8, W=[];
   let vc=TAPV[c][TAPI[type]];
   const g=$('kGrade').value, gk = g==='cn'?0.75 : g==='mid'?0.9 : 1;
@@ -1866,7 +1885,9 @@ segInit('qThr', v=>{ qThr=v; qCalc(); });
 function reamAllow(D,hss){ const t=hss?[0.15,0.2,0.25,0.32,0.42]:[0.12,0.18,0.22,0.28,0.35]; return D<=6?t[0]:D<=10?t[1]:D<=18?t[2]:D<=30?t[3]:t[4]; }
 function qCalc(){
   const m=mat(); if(!m) return;
-  const c=SUBCAT[m.id], D=num('qD'), L=num('qL'); if(D<=0||L<=0) return;
+  const c=SUBCAT[m.id], D=num('qD'), L=num('qL'); if(D<=0||L<=0){
+    invalidateResult(['qN','qF','qVc','qFr','qX1','qX2','qRaO','qIT'],'qCode','qWarns','Диаметр и глубина отверстия должны быть положительными.'); return;
+  }
   const nMax=num('nMax')||12000, gk=GK3[$('qGrade').value], W=[];
   let vc, f, code, raO, it;
   if(qOp==='ream'){
@@ -1934,7 +1955,9 @@ function bCalc(){
   const m=mat(); if(!m) return; const W=[];
   if(bOp==='ball'){
     const D=num('bD'), z=Math.round(num('bz')), ap=num('bAp'), sl=num('bSlope'), h=num('bH')/1000, gk=GK3[$('bGrade').value];
-    if(D<=0||z<=0||ap<=0||h<=0) return;
+    if(D<=0||z<=0||ap<=0||h<=0){
+      invalidateResult(['bN','bF','bDe','bVc','bFz','bAe','bRa','bHf'],null,'bWarns','Проверьте диаметр, число зубьев, глубину ap и гребешок h.'); return;
+    }
     const nMax=num('nMax')||12000;
     const ang=Math.min(Math.PI/2, sl*Math.PI/180 + Math.acos(1-2*Math.min(ap,D/2)/D));
     const De=D*Math.sin(ang);
@@ -2013,7 +2036,10 @@ function lCalc(){
   $('lTL').textContent = holes ? 'Стойкость, отверстий' : (ins ? 'Стойкость кромки, мин' : 'Стойкость, мин');
   $('lPriceL').textContent = ins ? 'Цена пластины, ₽' : 'Цена, ₽';
   const use=num('lUse'), dv=num('lVc'), batch=Math.max(1,Math.round(num('lBatch')));
-  if(use<=0) return;
+  if(use<=0){
+    invalidateResult(['lCA','lCB'],null,'lWarns','Время обработки или количество отверстий должно быть больше нуля.');
+    document.querySelector('#lOut tbody').textContent=''; return;
+  }
   const kT=Math.pow(1/Math.max(1+dv/100,0.1), 1/L.n);
   const calcV=(s)=>{
     const price=num('lPrice'+s), T=num('lT'+s)*kT;
