@@ -301,7 +301,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
             <option value="0.4">Вакуум / магнит</option>
             <option value="0.3">Скотч + клей</option>
           </select>
-          <div class="hint">При слабом закреплении снижает автоматические S/F, сохраняя подачу на зуб или шаг. При фрезеровании дополнительно уменьшает рекомендуемые ap/ae. Ручные значения сохраняются. Это эвристика, а не расчёт силы удержания.</div>
+          <div class="hint">При слабом закреплении снижает автоматические S/F; во фрезеровании также fz и ap/ae. При работе метчиком шаг P сохраняется, F=S×P. Ручные S/fz не меняются. Коэффициенты ориентировочные, удержание заготовки не рассчитано.</div>
         </div>
         <div class="row3">
           <div><label class="label" for="dia">Ø фрезы, мм</label><input id="dia" type="number" value="10" min="1" max="200" step="0.5"></div>
@@ -1113,7 +1113,7 @@ function fixtureInfo(W){
   const k=fixtureK();
   if(k>=0.999) return;
   const label=escapeText($('clamp').selectedOptions[0]?.text||'слабое закрепление');
-  W.push([k<=0.4?'bad':'',`Закрепление «${label}»: для операций с осевой нагрузкой и вибрацией автоматические S/F скорректированы (S ×${nf(Math.sqrt(k),2)}, подача на зуб/оборот и шаг метчика сохраняются). Это стартовая эвристика: сила удержания, силы резания и риск срыва заготовки НЕ проверены. При ручных S/F предупреждение остаётся.`]);
+  W.push([k<=0.4?'bad':'',`Закрепление «${label}»: для операций с осевой нагрузкой и вибрацией автоматические S/F скорректированы (S ×${nf(Math.sqrt(k),2)}); во фрезеровании также уменьшается автоматическая fz. Шаг метчика сохраняется. Это стартовая эвристика: сила удержания, силы резания и риск срыва заготовки НЕ проверены. При ручных S/F предупреждение остаётся.`]);
 }
 function machineWarnings(W,n,F,P,opts={}){
   const nMax=num('nMax')||12000, nWork=Math.min(num('nWork')||nMax,nMax),
@@ -1257,6 +1257,9 @@ function calc(){
   if(hss) fz=hssData[3]*Math.pow(Math.min(Math.max(D,2),25)/10,0.65)*Math.min(thin,1.3)*kAx;
   fz = scaledFeed((num('catFz')>0 ? num('catFz') : fz*(hss?1:gk[1]))*(1+k.fz/100));
   let ldf = ldFactor(ld); if(ldf<1 && ap/D<0.5) ldf = 1-(1-ldf)*0.6; fz*=ldf;
+  // Слабый зажим: не компенсируем меньшие ap/ae ростом fz.
+  // Только для автоматической рекомендации; заданная вручную fz сохраняется.
+  if(fixtureK()<1) fz*=Math.sqrt(fixtureK());
   const fzAuto = fz;
   const fzMan = manFeed('fzMan', n*z, fzAuto);
   if(fzMan>0) fz = fzMan;
@@ -1320,7 +1323,7 @@ function calc(){
   const kzv=parseFloat($('clamp').value)||1;
   if(manualApAe && (ap>rec.ap*1.05 || ae>rec.ae*1.05))
     W.push([kzv<0.6?'bad':'',`Ручные ap/ae (${nf(ap,2)} / ${nf(ae,2)} мм) выше рекомендаций (${nf(rec.ap,2)} / ${nf(rec.ae,2)} мм). Проверьте закрепление; значения сохранены.`]);
-  if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${escapeText($('clamp').selectedOptions[0].text)}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}, автоматические S/F также снижены без изменения fz. Ручные параметры сохраняются; безопасное удержание не подтверждено.`]);
+  if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${escapeText($('clamp').selectedOptions[0].text)}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}, автоматические S/fz снижены, F/Q/мощность пересчитаны. Ручные параметры сохраняются; безопасное удержание не подтверждено.`]);
   machineWarnings(W,n,F,P,{D,ap,ae,face:t.idx&&t.face});
   if(hss && !(num('catVc')>0 && num('catFz')>0)) W.push(['info','Для HSS применяется отдельная осторожная стартовая таблица; уточняйте по серии фрезы, охлаждению и материалу.']);
   if(num('catVc')>0||num('catFz')>0) W.push(['info',`Каталог ${escapeText($('toolMaker').value||'производитель не указан')} ${escapeText($('toolSeries').value||'')}: исходные Vc/fz с поправками станка.`]);
