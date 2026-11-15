@@ -932,18 +932,24 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
 
 
 
-  <div hidden>
-        
-        <div class="row3" style="margin-top:12px">
-          
-          <div hidden><label class="label" for="pS1">P S1, кВт</label><input id="pS1" type="number" value="7.5" step="0.5"></div>
-          <div><label class="label" for="pS2">Мощность шпинделя, кВт</label><input id="pS2" type="number" value="11" step="0.5"></div>
-        </div>
-        <div class="row" style="margin-top:12px">
-          <div><label class="label" for="vfMax">Vf max, мм/мин</label><input id="vfMax" type="number" value="10000" step="500"></div>
-          <div><label class="label" for="eta">КПД привода</label><input id="eta" type="number" value="0.8" step="0.05" min="0.5" max="1"></div>
-        </div>
-      </div>
+  <details class="card" id="machineProfile" style="margin-top:14px">
+    <summary style="cursor:pointer;font-weight:700">⚙ Профиль станка и поправки к режимам</summary>
+    <p class="hint">Значения по умолчанию — пример, а НЕ паспорт вашего станка. Уточните по шильдику и руководству. Настройки сохраняются в этом браузере.</p>
+    <div class="row3">
+      <div><label class="label" for="machineName">Модель станка</label><input id="machineName" type="text" placeholder="Укажите модель"></div>
+      <div><label class="label" for="pS1">Мощность S1, кВт (длительно)</label><input id="pS1" type="number" value="7.5" step="0.5" min="0.1"></div>
+      <div><label class="label" for="pS2">Мощность S2, кВт (кратковременно)</label><input id="pS2" type="number" value="11" step="0.5" min="0.1"></div>
+      <div><label class="label" for="vfMax">Макс. подача осей, мм/мин</label><input id="vfMax" type="number" value="10000" step="500" min="1"></div>
+      <div><label class="label" for="vfWork">Рабочая подача, мм/мин (необязательно)</label><input id="vfWork" type="number" placeholder="не задана" min="1"></div>
+      <div><label class="label" for="eta">КПД привода, 0–1</label><input id="eta" type="number" value="0.8" step="0.05" min="0.1" max="1"></div>
+      <div><label class="label" for="ratedRpm">Начало постоянной мощности, об/мин</label><input id="ratedRpm" type="number" placeholder="не задано" min="1"></div>
+      <div><label class="label" for="maxTorque">Длительный момент шпинделя, Н·м</label><input id="maxTorque" type="number" placeholder="не задан" min="0" step="1"></div>
+      <div><label class="label" for="vcScale">Поправка к авто Vc, %</label><input id="vcScale" type="number" value="100" min="10" max="200" step="5"></div>
+      <div><label class="label" for="fzScale">Поправка к авто fz/f, %</label><input id="fzScale" type="number" value="100" min="10" max="200" step="5"></div>
+      <div><label class="label" for="toolCutLen">Длина режущей части фрезы, мм</label><input id="toolCutLen" type="number" placeholder="не задана" min="0" step="1"></div>
+    </div>
+    <div class="hint">Ограничения помогают оценивать риск, но не заменяют пробный проход, проверку стойки, жёсткости и крепления.</div>
+  </details>
 
 </div>
 
@@ -1116,7 +1122,7 @@ function calc(){
   const t=tool(), g=grade(), gk=g[2][m.iso];
   const D=num('dia'), z=Math.round(num('z')), ld=num('ld');
   const ap=num('ap'), ae=num('ae');
-  const nMax=num('nMax')||12000, pS1=num('pS2')||11, pS2=num('pS2')||11, vfMax=num('vfMax')||10000, eta=num('eta')||0.8;
+  const nMax=num('nMax')||12000, pS1=num('pS1')||7.5, pS2=num('pS2')||11, vfMax=num('vfMax')||10000, eta=num('eta')||0.8;
   const k={vc:0, fz:0};
   const W=[];
   if(D<=0||z<=0||ap<=0||ae<=0){ return; }
@@ -1268,7 +1274,7 @@ document.querySelectorAll('#mode button').forEach(b=>b.addEventListener('click',
 sel.addEventListener('change',()=>{ dCalc(); tCalc(); });
 
 function powerBar(P, barId, pillId){
-  const pS1=num('pS2')||11, pS2=num('pS2')||11;
+  const pS1=num('pS1')||7.5, pS2=num('pS2')||11;
   const load=P/pS1*100, bar=$(barId);
   let col='var(--ok)', pill='В норме';
   if(P>pS2){ col='var(--bad)'; pill='Перегруз'; } else if(P>pS1){ col='var(--warn)'; pill='Только S2, ≤30 мин'; } else if(load>80){ col='var(--warn)'; pill='На пределе'; }
