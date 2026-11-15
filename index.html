@@ -301,7 +301,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
             <option value="0.4">Вакуум / магнит</option>
             <option value="0.3">Скотч + клей</option>
           </select>
-          <div class="hint">Снижает ap (и ae при слабом зажиме). Подачу на зуб не трогает.</div>
+          <div class="hint">Фрезерование: снижает рекомендуемые ap/ae. Остальные операции: снижает только автоматические S и F, сохраняя fz/шаг; ручные настройки не меняет. Коэффициенты ориентировочные, не гарантируют безопасное удержание.</div>
         </div>
         <div class="row3">
           <div><label class="label" for="dia">Ø фрезы, мм</label><input id="dia" type="number" value="10" min="1" max="200" step="0.5"></div>
@@ -1106,6 +1106,15 @@ function machinePower(n){
   if(torque>0 && n>0) s1=Math.min(s1,torque*n/9550);
   return s1;
 }
+// Консервативная эвристика для слабого закрепления; НЕ модель удерживающей силы.
+function fixtureK(){ return Math.min(1,Math.max(0.3,parseFloat($('clamp').value)||1)); }
+function fixtureAutoN(n){ return n*Math.sqrt(fixtureK()); }
+function fixtureInfo(W){
+  const k=fixtureK();
+  if(k>=0.999) return;
+  const label=escapeText($('clamp').selectedOptions[0]?.text||'слабое закрепление');
+  W.push([k<=0.4?'bad':'',`Закрепление «${label}»: для операций с осевой нагрузкой и вибрацией автоматические S/F скорректированы (S ×${nf(Math.sqrt(k),2)}, подача на зуб/оборот и шаг метчика сохраняются). Это стартовая эвристика: сила удержания, силы резания и риск срыва заготовки НЕ проверены. При ручных S/F предупреждение остаётся.`]);
+}
 function machineWarnings(W,n,F,P,opts={}){
   const nMax=num('nMax')||12000, nWork=Math.min(num('nWork')||nMax,nMax),
         vfMax=num('vfMax')||10000, vfWork=num('vfWork');
@@ -1117,6 +1126,7 @@ function machineWarnings(W,n,F,P,opts={}){
   if(num('pS1')>0 && s2<num('pS1')) W.push(['bad','В профиле станка S2 меньше S1: проверьте паспортные параметры.']);
   if(P>0 && P>s2) W.push(['bad',`Нужна мощность ${nf(P,1)} кВт, выше S2 ${nf(s2,1)} кВт.`]);
   else if(P>0 && P>s1) W.push(['',`Требуется ${nf(P,1)} кВт, доступно S1 ≈${nf(s1,1)} кВт на ${nf(n)} об/мин.`]);
+  fixtureInfo(W);
   const len=num('toolCutLen');
   if(opts.ap && len>0 && opts.ap>len) W.push(['bad',`ap ${nf(opts.ap,2)} выше указанной длины режущей части ${nf(len,1)} мм.`]);
   if(opts.ae && opts.D && opts.ae>opts.D+0.001) W.push(['bad',`ae ${nf(opts.ae,2)} > Ø ${nf(opts.D,2)} мм — проверьте геометрию захвата.`]);
@@ -1333,7 +1343,7 @@ function onTool(){
 sel.addEventListener('change', onMat);
 $('toolType').addEventListener('change', onTool);
 $('grade').addEventListener('change',()=>{ resetCatalog(); if(!manualApAe) recApAe(); calc(); });
-$('clamp').addEventListener('change',()=>{ try{localStorage.setItem('clamp',$('clamp').value)}catch(e){} if(!manualApAe) recApAe(); calc(); });
+$('clamp').addEventListener('change',()=>{ try{localStorage.setItem('clamp',$('clamp').value)}catch(e){} if(!manualApAe) recApAe(); calc(); dCalc(); tCalc(); kCalc(); qCalc(); cCalc(); bCalc(); });
 try{ const cv=localStorage.getItem('clamp'); if(cv) $('clamp').value=cv; }catch(e){}
 document.querySelectorAll('#strat button').forEach(b=>b.addEventListener('click',()=>{
   if(b.disabled) return;
@@ -1449,6 +1459,7 @@ function dCalc(){
 
   const nLim=nRec($('dGrade').value==='cn', 0);
   let n=vc*1000/(Math.PI*D), capped=false; if(n>nLim){ n=nLim; capped=true; }
+  n=fixtureAutoN(n);
   const nAuto=n, fAuto=f;
   const sM=num('dSMan');
   if(sM>0) n=sM;
@@ -1539,6 +1550,7 @@ function tCalc(){
   if(type==='multi' && L>2*d) passes+=1;
   const nLim=nRec($('tGrade').value==='cn', 0);
   let n=vc*1000/(Math.PI*d), capped=false; if(n>nLim){ n=nLim; capped=true; }
+  n=fixtureAutoN(n);
   const nAuto=n, fzAuto=fz, pAuto=passes;
   const sM=num('tSMan'), pM=Math.round(num('tPassMan'));
   if(sM>0) n=sM; if(pM>0) passes=pM;
@@ -1709,6 +1721,7 @@ function cCalc(){
     if(cOp==='deburr') fz*=1.2;
     vc=scaledVc(vc); fz=scaledFeed(fz);
     let nA = vc*1000/(Math.PI*Math.max(De,0.5)), capped=false; if(nA>nLim){ nA=nLim; capped=true; }
+    nA=fixtureAutoN(nA);
     const sM=num('cSMan');
     n = sM>0 ? sM : nA;
     const fzA=fz, fM=manFeed('cFMan', n*z, fzA); if(fM>0) fz=fM;
@@ -1747,6 +1760,7 @@ function cCalc(){
     let f = (0.05 + 0.003*Dk) * C_FZK[c] * gk[1] * (t==='hss1'?1.2:1) * (t==='spot'?0.8:1);
     vc=scaledVc(vc); f=scaledFeed(f);
     let nA = vc*1000/(Math.PI*Dk), capped=false; if(nA>nLim){ nA=nLim; capped=true; }
+    nA=fixtureAutoN(nA);
     const sM=num('cSMan');
     n = sM>0 ? sM : nA;
     const fA=f, fM=manFeed('cFMan', n, fA); if(fM>0) f=fM;
@@ -1836,6 +1850,7 @@ function kCalc(){
   vc*=k;
   const nLim=nRec($('kGrade').value==='cn', 0);
   let n=vc*1000/(Math.PI*D); if(n>nLim) n=nLim;
+  n=fixtureAutoN(n);
   const nA=n, sM=num('kSMan'); if(sM>0) n=sM;
   $('kSMan').placeholder='авто '+nf(nA);
   n=Math.round(n);
@@ -1921,6 +1936,7 @@ function qCalc(){
   vc=scaledVc(vc); f=scaledFeed(f);
   const nLim=nRec($('qGrade').value==='cn', qOp==='bore'?num('qLD'):0);
   let n=vc*1000/(Math.PI*D); if(n>nLim){ n=nLim; W.push(['info',`Обороты ${nf(nLim)}.`+recNote(nLim)]); }
+  n=fixtureAutoN(n);
   const nA=n, fA=f, sM=num('qSMan');
   if(sM>0) n=sM;
   const fM=manFeed('qFMan', n, fA); if(fM>0) f=fM;
@@ -1964,6 +1980,7 @@ function bCalc(){
     const vc=scaledVc(m.vc.finish*gk[0]);
     const nLim=nRec($('bGrade').value==='cn', 0);
     let n=vc*1000/(Math.PI*Math.max(De,0.1)), capped=false; if(n>nLim){ n=nLim; capped=true; }
+    n=fixtureAutoN(n);
     const nAuto=n; if(num('bSMan')>0) n=num('bSMan');
     const thin=Math.min(D/Math.max(De,0.01),2.5);
     let fz=scaledFeed(m.ff*Math.pow(Math.min(Math.max(D,1),20)/10,0.8)*thin*gk[1]);
