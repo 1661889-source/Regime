@@ -347,7 +347,7 @@ body{overflow-x:clip; touch-action:pan-y pinch-zoom; -webkit-text-size-adjust:10
     </div>
 
     <div class="card res">
-      <div class="hint" style="margin-bottom:10px">Для обратного расчёта Q/P менять <select id="solveVia" style="display:inline;width:auto"><option value="ap">ap</option><option value="ae">ae</option><option value="F">F (через fz)</option></select>. S, F, fz, ap, ae редактируются напрямую.</div>
+      <div class="hint" style="margin-bottom:10px">Для обратного расчёта Q/P менять <select id="solveVia" style="display:inline;width:auto"><option value="ap">ap</option><option value="ae">ae</option><option value="F">F (через fz)</option></select>. S, F, fz, ap, ae редактируются напрямую. При правке времени T менять <select id="solveTimeVia" style="display:inline;width:auto"><option value="F">F</option><option value="L">длину L</option></select>.</div>
       <div class="tiles">
         <div class="tile main"><div class="k">Обороты S</div><div class="v" id="oN">—</div><div class="u">об/мин</div></div>
         <div class="tile main"><div class="k">Подача F</div><div class="v" id="oF">—</div><div class="u">мм/мин</div></div>
@@ -1101,8 +1101,8 @@ function machineWarnings(W,n,F,P,opts={}){
   else if(P>0 && P>s1) W.push(['',`Требуется ${nf(P,1)} кВт, доступно S1 ≈${nf(s1,1)} кВт на ${nf(n)} об/мин.`]);
   const len=num('toolCutLen');
   if(opts.ap && len>0 && opts.ap>len) W.push(['bad',`ap ${nf(opts.ap,2)} выше указанной длины режущей части ${nf(len,1)} мм.`]);
-  if(opts.ae && opts.D && opts.ae>opts.D+0.001 && !opts.face) W.push(['bad',`ae ${nf(opts.ae,2)} > Ø ${nf(opts.D,2)} мм — проверьте геометрию захвата.`]);
-  return n>nMax+0.1 || F>vfMax+0.1 || (opts.ap && len>0 && opts.ap>len) || (opts.ae && opts.D && opts.ae>opts.D+0.001 && !opts.face);
+  if(opts.ae && opts.D && opts.ae>opts.D+0.001 && true) W.push(['bad',`ae ${nf(opts.ae,2)} > Ø ${nf(opts.D,2)} мм — проверьте геометрию захвата.`]);
+  return n>nMax+0.1 || F>vfMax+0.1 || (opts.ap && len>0 && opts.ap>len) || (opts.ae && opts.D && opts.ae>opts.D+0.001);
 }
 function scaledVc(vc){ return vc*(Math.max(1,num('vcScale')||100)/100); }
 function scaledFeed(f){ return f*(Math.max(1,num('fzScale')||100)/100); }
@@ -1347,7 +1347,7 @@ function codeSafety(id,n,F,invalid=false){
   const el=$(id), maxN=num('nMax')||12000, maxF=num('vfMax')||10000;
   const bad=invalid || n>maxN+0.1 || F>maxF+0.1 || !(n>0) || !(F>0);
   el.dataset.unsafe=bad?'true':'false';
-  if(bad) el.textContent='(ОШИБКА: предел станка или геометрия. КОПИРОВАНИЕ ЗАБЛОКИРОВАНО)\\n'+el.textContent;
+  if(bad) el.textContent='(ОШИБКА: предел станка или геометрия. КОПИРОВАНИЕ ЗАБЛОКИРОВАНО)\n'+el.textContent;
 }
 function copyBtn(btnId, preId){
   $(btnId).addEventListener('click',()=>{
@@ -2368,9 +2368,22 @@ document.querySelectorAll('details.fold > summary, .card > h2').forEach(x=>{ if(
 <script>
 // Обратный расчёт: Q и P — это зависимые величины. Оператор выбирает, что менять.
 (function(){
-  const fields=[['oQ','Q'],['oP','P'],['oHm','hm']];
+  const fields=[['oQ','Q'],['oP','P'],['oHm','hm'],['oTime','T']];
   function apply(kind,target){
     if(!(target>0) || !Number.isFinite(target)) return;
+    if(kind==='T'){
+      const before=pn('oTime'); if(!(before>0)) return;
+      if($('solveTimeVia').value==='L'){ $('cutLen').value=+(num('cutLen')*target/before).toFixed(4); $('cutLen').dispatchEvent(new Event('input')); }
+      else {
+        const n=pn('oN'),z=Math.round(num('z')),newF=pn('oF')*before/target;
+        if(!(n>0 && z>0 && newF>0)) return;
+        const perBtn=document.querySelector('#fzManU button[data-v="per"]');
+        if(perBtn && perBtn.getAttribute('aria-pressed')!=='true') perBtn.click();
+        $('fzMan').value=+(newF/(n*z)).toFixed(6);
+        $('fzMan').dispatchEvent(new Event('input'));
+      }
+      calc(); return;
+    }
     const axis=$('solveVia').value;
     for(let i=0;i<12;i++){
       const current=pn(kind==='Q'?'oQ':kind==='P'?'oP':'oHm');
