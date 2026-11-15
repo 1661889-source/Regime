@@ -2117,7 +2117,7 @@ updateAllModes();
 // ===== S и F правятся прямо в результате =====
 const EDIT = {
   mill:{S:['oN','sMan'], F:['oF','fzMan']}, drill:{S:['dN','dSMan'], F:['dF','dFMan']}, tap:{S:['kN','kSMan']},
-  thread:{S:['tN','tSMan'], F:['tF','tFzMan']}, ream:{S:['qN','qSMan'], F:['qF','qFMan']}, chamfer:{S:['cN','cSMan'], F:['cF','cFMan']}
+  thread:{S:['tN','tSMan'], F:['tF','tFzMan']}, ream:{S:['qN','qSMan'], F:['qF','qFMan']}, chamfer:{S:['cN','cSMan'], F:['cF','cFMan'], ball:{S:['bN','bSMan'],F:['bF','bFzMan']}
 };
 function setManual(manId, val, isF){
   const el=$(manId);
@@ -2358,4 +2358,63 @@ document.querySelectorAll('details.fold > summary, .card > h2').forEach(x=>{ if(
 })();
 </script>
 
+
+<script>
+// Обратный расчёт: Q и P — это зависимые величины. Оператор выбирает, что менять.
+(function(){
+  const fields=[['oQ','Q'],['oP','P'],['oHm','hm']];
+  function apply(kind,target){
+    if(!(target>0) || !Number.isFinite(target)) return;
+    const axis=$('solveVia').value;
+    for(let i=0;i<12;i++){
+      const current=pn(kind==='Q'?'oQ':kind==='P'?'oP':'oHm');
+      if(!(current>0)) return;
+      if(Math.abs(current-target)/target<0.003) break;
+      const ratio=Math.max(0.05,Math.min(20,target/current));
+      if(kind==='hm' || axis==='F'){
+        const n=pn('oN'), z=Math.round(num('z')), feed=pn('oF');
+        if(!(n>0 && z>0 && feed>0)) return;
+        const exponent=kind==='P' ? 1/(1-mat().mc) : 1;
+        const F=Math.max(1,feed*Math.pow(ratio,exponent));
+        const per=F/(n*z);
+        const b=document.querySelector('#fzManU button[data-v="per"]');
+        if(b && b.getAttribute('aria-pressed')!=='true') b.click();
+        $('fzMan').value=per.toFixed(6);
+        $('fzMan').dispatchEvent(new Event('input'));
+      } else {
+        const el=$(axis), next=Math.max(0.001,num(axis)*ratio);
+        if(!(next>0) || !Number.isFinite(next)) return;
+        el.value=+next.toFixed(5);
+        el.dispatchEvent(new Event('input'));
+      }
+      calc();
+    }
+  }
+  fields.forEach(([id,kind])=>{
+    const v=$(id), tile=kind==='P'?v:v.closest('.tile');
+    if(!v || !tile) return;
+    tile.classList.add('edit');
+    tile.title='Нажмите, чтобы задать целевое '+kind;
+    tile.addEventListener('click',e=>{
+      if(e.target.closest('.tin')) return;
+      const input=document.createElement('input');
+      input.type='number'; input.inputMode='decimal'; input.className='tin'; input.min='0.001'; input.step='any';
+      input.value=pn(id);
+      v.hidden=true; v.after(input); input.focus(); input.select();
+      let done=false,tmr=null;
+      const commit=save=>{
+        if(done) return; done=true; clearTimeout(tmr);
+        const n=parseFloat(input.value.replace(',','.'));input.remove();v.hidden=false;
+        if(save) apply(kind,n);
+      };
+      input.addEventListener('input',()=>{
+        clearTimeout(tmr);
+        tmr=setTimeout(()=>{const n=parseFloat(input.value.replace(',','.'));if(n>0)apply(kind,n);},350);
+      });
+      input.addEventListener('keydown',e=>{if(e.key==='Enter')commit(true);if(e.key==='Escape')commit(false);});
+      input.addEventListener('blur',()=>commit(true));
+    });
+  });
+})();
+</script>
 </body></html>
