@@ -1091,6 +1091,7 @@ function nRec(cn, ld){
 }
 function recNote(nLim){ const nMax=num('nMax')||12000; return nLim<nMax ? ` Рекомендуемые обороты ${nf(nLim)} (${recWhy}). Станок даёт до ${nf(nMax)} — если нет вибрации, поднимите вручную в плитке «Обороты S».` : ''; }
 // Допустимая непрерывная мощность: если паспортной кривой нет, возвращаем заданную S1.
+function escapeText(v){return String(v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 function machinePower(n){
   let s1=num('pS1')||7.5;
   const rated=num('ratedRpm'), torque=num('maxTorque');
@@ -1286,7 +1287,7 @@ function calc(){
   if(kzv<1) W.push([kzv<0.6?'bad':'',`Закрепление «${$('clamp').selectedOptions[0].text}»: рекомендуемая ap ×${nf(kzv,2)}${kzv<0.6?', ae ×0,7':''}. fz не снижать — фреза начнёт тереть и вибрировать сильнее. Ручной ввод ap/ae не ограничивается — следите сами.`]);
   machineWarnings(W,n,F,P,{D,ap,ae,face:t.idx&&t.face});
   if(hss && !(num('catVc')>0 && num('catFz')>0)) W.push(['info','Для HSS применяется отдельная осторожная стартовая таблица; уточняйте по серии фрезы, охлаждению и материалу.']);
-  if(num('catVc')>0||num('catFz')>0) W.push(['info',`Каталог ${$('toolMaker').value||'производитель не указан'} ${$('toolSeries').value||''}: исходные Vc/fz с поправками станка.`]);
+  if(num('catVc')>0||num('catFz')>0) W.push(['info',`Каталог ${escapeText($('toolMaker').value||'производитель не указан')} ${escapeText($('toolSeries').value||'')}: исходные Vc/fz с поправками станка.`]);
   W.push(['info',`<b>${m.name}</b>: ${m.note}`]);
   $('warns').innerHTML=W.map(w=>`<div class="${w[0]}">${w[1]}</div>`).join('');
 
@@ -1443,7 +1444,7 @@ function dCalc(){
 
   const zEnd = -(L+tip);
   let line = `${cyc} X0. Y0. Z${f3(zEnd)} R2.` + (q>0?` Q${f3(q)}`:'') + ` F${Math.round(F)}.`;
-  $('dCode').textContent = `(ПРОВЕРИТЬ G94, ОТВОДЫ, СТОЙКУ И СОЖ)\nS${Math.round(n)} M03\n` + line + `\nG80`;
+  $('dCode').textContent = `(ШАБЛОН: ПРОВЕРИТЬ G94, ОТВОДЫ, СТОЙКУ И СОЖ)\nG94\nS${Math.round(n)} M03\n` + line + `\nG80`;
   codeSafety('dCode',n,F,ld>8 || (type==='udrill'&&ld>5) || (type==='spot'&&ld>1.5));
 
   if(sM>0) W.unshift(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nAuto)}.`]);
@@ -1533,7 +1534,7 @@ function tCalc(){
     g.push(`(${name} ВНУТР. ПРАВАЯ, ФРЕЗА D${d} Z${z})`);
     g.push(`(ШАБЛОН: ПРОВЕРИТЬ СТОЙКУ, G17 G90 G94, ГЕОМЕТРИЮ И БЕЗОПАСНЫЕ ВЫСОТЫ)`);
     g.push(`(ЦЕНТР ОТВЕРСТИЯ X0 Y0, ВЕРХ ДЕТАЛИ Z0)`);
-    g.push(`S${Math.round(n)} M03`);
+    g.push('G17 G94'); g.push(`S${Math.round(n)} M03`);
     g.push(`G90 G00 X0. Y0.`); g.push(`Z2.`);
     g.push(`G01 Z${f3(-L)} F${Math.round(Math.min(Fp,2000))}.`);
     for(let i=1;i<=passes;i++){
@@ -1552,7 +1553,7 @@ function tCalc(){
     g.push(`(${name} НАРУЖ. ПРАВАЯ, ФРЕЗА D${d} Z${z})`);
     g.push(`(ШАБЛОН: ПРОВЕРИТЬ СТОЙКУ, G17 G90 G94, ГЕОМЕТРИЮ И БЕЗОПАСНЫЕ ВЫСОТЫ)`);
     g.push(`(ЦЕНТР ЦАПФЫ X0 Y0, ВЕРХ Z0)`);
-    g.push(`S${Math.round(n)} M03`);
+    g.push('G17 G94'); g.push(`S${Math.round(n)} M03`);
     const Rs = R + h + 3;
     const z0 = type==='multi' ? -L + P : P;
     g.push(`G90 G00 X${f3(Rs)} Y0.`); g.push(`Z${f3(z0)}`);
@@ -1596,7 +1597,7 @@ document.querySelectorAll('#tKind button').forEach(b=>b.addEventListener('click'
   tKind=b.dataset.v; document.querySelectorAll('#tKind button').forEach(x=>x.setAttribute('aria-pressed', x===b?'true':'false')); tTool();
 }));
 initFeedToggle('tFzMan', ()=>tCalc());
-$('tReset').addEventListener('click',()=>{ ['tSMan','tFzMan','tPassMan'].forEach(i=>$(i).value=''); tCalc(); });
+$('tReset').addEventListener('click',()=>{ ['tSMan','tFzMan','tPassMan'].forEach(i=>$(i).value=''); $('tEntryPct').value=30; tCalc(); });
 copyBtn('tCopy','tCode');
 ['nMax','pS1','pS2','vfMax','eta'].forEach(id=>$(id).addEventListener('input',()=>{ dCalc(); tCalc(); }));
 
@@ -1738,7 +1739,7 @@ function cCalc(){
   $('cVc').textContent=nf(vc); $('cVcU').textContent = 'м/мин, на Ø '+nf(De,1);
   $('cFzK').textContent=fKey; $('cFz').textContent=fShow; $('cFzU').textContent=fUnit;
   $('cDe').textContent=nf(De,2); $('cZ').textContent=nf(Z,3);
-  $('cCode').textContent='(ШАБЛОН: ПРОВЕРИТЬ СТОЙКУ, G94 И БЕЗОПАСНЫЕ ПОДВОДЫ)\n'+code.join('\n');
+  $('cCode').textContent='(ШАБЛОН: ПРОВЕРИТЬ СТОЙКУ, G94 И БЕЗОПАСНЫЕ ПОДВОДЫ)\nG94\n'+code.join('\n');
   codeSafety('cCode',n,F,Dmax<De || !(De>0) || (cOp==='csink'&&num('cDk')<=num('cHole')));
   if($('cGrade').value==='cn') W.push(['','Китайский инструмент: проверьте биение, на фасках оно сразу видно по неровной ширине фаски.']);
   machineWarnings(W,n,F,0);
@@ -1892,7 +1893,7 @@ function qCalc(){
   if(qOp==='ream') code=[`(РАЗВЁРТКА Ø${f3(D)} H7)`,`S${Math.round(n)} M03`,`G85 X__ Y__ Z${f3(-L)} R2. F${Math.round(F)}.`,`G80`];
   else if($('qbType').value==='fine') code=[`(ЧИСТОВАЯ РАСТОЧКА Ø${f3(D)})`,`S${Math.round(n)} M03`,`G76 X__ Y__ Z${f3(-L)} R2. Q0.1 F${Math.round(F)}.`,`G80`,`(Q — ОТВОД ОТ СТЕНКИ ПОСЛЕ ОРИЕНТАЦИИ; НАПРАВЛЕНИЕ — ПАРАМ. 5101#4/#5)`];
   else code=[`(ЧЕРНОВАЯ РАСТОЧКА Ø${f3(D)})`,`S${Math.round(n)} M03`,`G85 X__ Y__ Z${f3(-L)} R2. F${Math.round(F)}.`,`G80`];
-  $('qCode').textContent='(ПРОВЕРИТЬ G85/G76 И ЦИКЛЫ В РУКОВОДСТВЕ СТОЙКИ)\n'+code.join('\n');
+  $('qCode').textContent='(ШАБЛОН: ПРОВЕРИТЬ G85/G76 И ЦИКЛЫ В РУКОВОДСТВЕ СТОЙКИ)\nG94\n'+code.join('\n');
   codeSafety('qCode',n,F,(qOp==='bore' && num('qAp')*2>=D) || (qOp==='ream' && D<=reamAllow(D,$('qrType').value==='hss')));
   if(sM>0) W.push(['info',`Обороты заданы вручную: ${nf(n)} вместо ${nf(nA)}.`]);
   machineWarnings(W,n,F,0);
@@ -2338,10 +2339,10 @@ $('hsmQ').addEventListener('click',()=>{ const t=$('hsmTip'), open=t.hidden; t.h
   }));
   // кнопка «Вернуть рекомендуемые» в каждом результате
   const RESET = {
-    mill:   {res:'#mMill .res',   man:['sMan','fzMan'], seg:'fzManU', after:()=>{ recApAe(); calc(); }},
+    mill:   {res:'#mMill .res',   man:['sMan','fzMan'], seg:'fzManU', after:()=>{ resetCatalog(); manualApAe=false; recApAe(); calc(); }},
     drill:  {res:'#mDrill .res',  man:['dSMan','dFMan'], seg:'dFManU', after:()=>dCalc()},
     tap:    {res:'#mTap .res',    man:['kSMan'], after:()=>kCalc()},
-    thread: {res:'#mThread .res', man:['tSMan','tFzMan','tPassMan'], seg:'tFzManU', after:()=>tTool()},
+    thread: {res:'#mThread .res', man:['tSMan','tFzMan','tPassMan'], seg:'tFzManU', after:()=>{ $('tEntryPct').value=30; tTool(); }},
     ream:   {res:'#mReam .res',   man:['qSMan','qFMan'], seg:'qFManU', after:()=>qCalc()},
     chamfer:{res:'#mChamfer .res',man:['cSMan','cFMan'], seg:'cFManU', after:()=>cCalc()},
   };
